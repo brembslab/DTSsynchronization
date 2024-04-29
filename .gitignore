@@ -1,0 +1,7 @@
+.idea/
+venv/
+# project specific ignores
+installation/installation.txt
+example_data/
+synchronization/log.txt
+synchronization/update_sword.cmd
