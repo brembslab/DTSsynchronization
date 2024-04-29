@@ -3,5 +3,6 @@ venv/
 # project specific ignores
 installation/installation.txt
 example_data/
+!example_data/colorlearning/colorlearning.yml
 synchronization/log.txt
 synchronization/update_sword.cmd
