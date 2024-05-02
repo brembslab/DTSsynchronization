@@ -9,6 +9,9 @@ import time
 from datetime import datetime, date
 from zipfile import ZIP_DEFLATED
 import netrc
+from dotenv import load_dotenv
+from pathlib import Path
+from distutils.util import strtobool
 
 try:
     from StringIO import StringIO as BytesIO
@@ -23,10 +26,15 @@ except:
 
 import urllib3
 
+dotenv_path = Path(f'{Path.cwd()}/{os.path.dirname(__file__)}/.env')
+
+load_dotenv(dotenv_path=dotenv_path)
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-BASE_URL = 'https://epub-test.uni-regensburg.de'
-VERIFY = False  # Verify ssl certificate on request, has to be set false for the test server and should be true with valid ssl certificate
+BASE_URL = os.getenv('LIVE_URL')
+VERIFY = bool(strtobool(os.getenv('VERIFY', 'True')))
+# Verify ssl certificate on request, has to be set false for the test server and should be true with valid ssl certificate
 
 # packages that might have to be installed
 try:
