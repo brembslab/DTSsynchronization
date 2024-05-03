@@ -53,3 +53,4 @@ Einen *cronjob* anlegen:
 
 # TODOS
 - [ ] https://github.com/brembslab/DTSsynchronization/security/dependabot
+- [ ] Der Lizenz-Wert kann nur im fertigen XML ersetzt werden (Download bspw. https://epub.uni-regensburg.de/cgi/export/eprint/58196/XML/epub-eprint-58196.xml)

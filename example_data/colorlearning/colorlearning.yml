@@ -108,3 +108,4 @@ statistics:
     power: less #first group is tested for being lower than second group (alternatives: greater, two.sided)
     data: 0 #yes      
 mediatype: text/csv/xml
+epid: 58196
