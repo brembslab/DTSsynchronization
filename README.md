@@ -4,24 +4,31 @@
 - Windows: Datei `_netrc` in `%userprofile%` (Alias für `C:\Users\<user>`) erstellen
 
 Inhalt: `machine <example.com> login <username> password <password>`     
-z.B.: `machine epub-test.uni-regensburg.de login nds1234 password 1234`
+z.B.: `machine epub.uni-regensburg.de login nds1234 password 1234`
+
+Es können auch mehrere Anmeldeinformationen eingetragen werden, die von einer Leerzeile getrennt werden müssten.    
+```
+machine epub.uni-regensburg.de login nds1234 password 1234
+
+machine epub-test.uni-regensburg.de login nds1234 password 1234
+```
 
 Zusätzlich unter Unix: `chmod og-rwx ~/.netrc`
 
 ## Python-Pakete installieren
 Notwendige Pakete installieren:     
-`pip install -r [PFAD]/DTSevaluations/synchronization/requirements.txt`
+`pip install -r [PFAD]/DTSsynchronization/synchronization/requirements.txt`
 
 # Skript manuell starten
-Unter Unix zuerst Berechtigungen vergeben: `chmod a+x [PFAD]/DTSevaluations/synchronization/eprints_sword.py`    
+Unter Unix zuerst Berechtigungen vergeben: `chmod a+x [PFAD]/DTSsynchronization/synchronization/eprints_sword.py`    
 
 Skript manuell ausführen (als Administrator unter Windows):       
-`python "[PFAD]/DTSevaluations/synchronization/eprints_sword.py" -p [PFAD]/colorlearning -v`
+`python "[PFAD]/DTSsynchronization/synchronization/eprints_sword.py" -p [PFAD]/colorlearning -v`
 
 # Skript automatisieren
 ## Windows
 ### Skript anlegen
-Eine Datei "update_sword.cmd" anlegen (z.B. im Ordner "DTSevaluations\synchronization") und folgendes hineinschrieben: `python "[PFAD]\DTSevaluations\synchronization\eprints_sword.py" -p [PFAD]\colorlearning -v`    
+Eine Datei "update_sword.cmd" anlegen (z.B. im Ordner "DTSsynchronization\synchronization") und folgendes hineinschrieben: `python "[PFAD]\DTSsynchronization\synchronization\eprints_sword.py" -p [PFAD]\colorlearning -v`    
 
 Eine Beispiel-Datei mit dem Titel `update_sword.cmd` liegt schon bereit.
 ### Aktion erstellen
@@ -33,8 +40,8 @@ Eine Beispiel-Datei mit dem Titel `update_sword.cmd` liegt schon bereit.
 - **Trigger**: beliebiger Trigger, z.B. "Bei Anmeldung"
 - **Aktionen**:
 	- "Neu" 
-	- *Programm/Skript*: `[PFAD]\DTSevaluations\synchronization\update_sword.cmd`
-	- *Argumente hinzufügen (optional)*: `> [PFAD]\DTSevaluations\synchronization\log.txt 2>&1`
+	- *Programm/Skript*: `[PFAD]\DTSsynchronization\synchronization\update_sword.cmd`
+	- *Argumente hinzufügen (optional)*: `> [PFAD]\DTSsynchronization\synchronization\log.txt 2>&1`
 ## Unix
 Zuerst überprüfen, ob ein Skript nach dem Booten ausgeführt werden darf:
 1. `sudo systemctl status cron.service`
@@ -42,4 +49,7 @@ Zuerst überprüfen, ob ein Skript nach dem Booten ausgeführt werden darf:
 
 Einen *cronjob* anlegen:
 1. `crontab -e`
-2. `@reboot python [PFAD]/DTSevaluations/synchronization/eprints_sword.py > [PFAD]/DTSevaluations/synchronization/log.txt 2>&1`
+2. `@reboot python [PFAD]/DTSsynchronization/synchronization/eprints_sword.py > [PFAD]/DTSsynchronization/synchronization/log.txt 2>&1`
+
+# TODOS
+- [ ] https://github.com/brembslab/DTSsynchronization/security/dependabot

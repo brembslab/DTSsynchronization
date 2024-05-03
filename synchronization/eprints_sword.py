@@ -32,8 +32,13 @@ load_dotenv(dotenv_path=dotenv_path)
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-BASE_URL = os.getenv('LIVE_URL')
-VERIFY = bool(strtobool(os.getenv('VERIFY', 'True')))
+USE_LIVE_SERVER = bool(strtobool(os.getenv('USE_LIVE_SERVER', 'True')))
+
+BASE_URL = 'https://epub-test.uni-regensburg.de'
+VERIFY = False
+if USE_LIVE_SERVER:
+    BASE_URL = 'https://epub.uni-regensburg.de'
+    VERIFY = True
 # Verify ssl certificate on request, has to be set false for the test server and should be true with valid ssl certificate
 
 # packages that might have to be installed
@@ -72,7 +77,7 @@ Sends a request to epub to upload one or multiple files
             creates new entry
         int: 
             attach files to eprint with given id
-        
+
 """
 
 
@@ -95,7 +100,7 @@ def pretty_print_POST(req):
     At this point it is completely built and ready
     to be fired; it is "prepared".
     However, pay attention at the formatting used in
-    this function because it is programmed to be pretty 
+    this function because it is programmed to be pretty
     printed and may differ from the actual request.
     """
     print('{}\n{}\n{}\n\n{}'.format(
@@ -196,7 +201,7 @@ def get_document_ids(epid, yaml_timestamp=False, type='fileid'):
     Returns
     -------
     docid : mixed
-        False on error 
+        False on error
         -1 if zips are up to date
         int[] with xml.zip and pdf.zip at [0] and [1] respectively
     """
@@ -214,9 +219,6 @@ def get_document_ids(epid, yaml_timestamp=False, type='fileid'):
     if verbose:
         print(headers)
     prepared = r.prepare()
-    # if verbose:
-    # print(prepared)
-    # print(prepared.body)
 
     # verify ssl certificate
     resp = s.send(prepared, verify=VERIFY)
@@ -227,7 +229,6 @@ def get_document_ids(epid, yaml_timestamp=False, type='fileid'):
         print(resp.text)
 
     if resp.status_code == 200 or resp.status_code == 201:
-
         regex = "text\/html.*\/document\/\d+"
         # m = re.search(regex, resp.text)
         response = resp.text
@@ -447,11 +448,9 @@ stream.close()
 first_name = author['firstName']
 last_name = author['lastName']
 orcid = author['id']
-nds = author['nds']
-publication_date = additional_metadata['date']
-if publication_date == "today":
-    publication_date = time.strftime("%Y-%m-%d")
-date_type = additional_metadata['dateType']
+nds = user
+publication_date = time.strftime("%Y-%m-%d")
+date_type = "published"
 oa_type = additional_metadata['oaType']
 created_here = additional_metadata['createdHere']
 data_type = additional_metadata['type']
@@ -489,6 +488,7 @@ ep_xml = """<?xml version='1.0' encoding='utf-8'?>
         %s
         <date>%s</date>
         <date_type>%s</date_type>
+        <ispublished>pub</ispublished>
     </eprint>
 </eprints>
 """ % (title, first_name, last_name, orcid, nds, data_type, oa_type, created_here, subjects_string, institutions_string,
@@ -598,6 +598,9 @@ if os.path.isfile(indexfile):
     # response = send_sword_request("", "", send_file=False, url=BASE_URL + "/id/eprint/" + str(epid) + "/contents", action='GET')
     response = get_document_ids(epid, False, 'document')
 
+    print("Response of first upload")
+    print(response)
+
     docid = False
     if response and len(response) > 0:
         docid = response[0]
@@ -651,7 +654,7 @@ if os.path.isfile(indexfile):
     # headers={}
     # up_file = xmlzip
     # if docids and len(docids) >= 2:
-    #    
+    #
     #    send_sword_request(up_file, content_type=get_content_type(up_file), send_file=True, headers=headers, url=BASE_URL + "/id/file/" + str(docids[1]), action='PUT')
     # else:
     #    send_sword_request(up_file, content_type=get_content_type(up_file), send_file=True, headers=headers, url=BASE_URL + "/id/eprint/" + str(epid) + "/contents", action='POST')

@@ -14,10 +14,7 @@ author:
     firstName: Björn
     lastName: Brembs
     id: 0000-0001-7824-7650
-    nds: aaa12345
 metadata:
-    date: "today"  # or 2023-01-23
-    dateType: "published"  #
     oaType: "primary"  # gold_paid, gold_free, gold_olh, scoap, hybrid, offsetting, rsc, alliance, copyright_law, sherpa, before1994, individual_contract, no_oa, unknown, other, or leave empty string
     subjects: ["ddc_2_570"]
     institutions: ["fak11_02_09"]
