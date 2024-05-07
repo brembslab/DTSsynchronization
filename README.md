@@ -1,4 +1,6 @@
 # Vorbereitungen
+## Live- oder Test-Server
+In der .env-Datei im Ordner "synchronization" kann angegeben werden, ob das Projekt auf den Live-Publikationsserver hochgeladen werden soll oder zuerst nur testweise auf den Test-Server unter "epub-test.ur.de".
 ## Nutzerdaten hinterlegen
 - Unix: Datei `.netrc` in `/home/<user>` erstellen    
 - Windows: Datei `_netrc` in `%userprofile%` (Alias für `C:\Users\<user>`) erstellen
