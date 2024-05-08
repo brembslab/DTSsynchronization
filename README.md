@@ -38,7 +38,7 @@ Eine Beispiel-Datei mit dem Titel `update_sword.cmd` liegt schon bereit.
 - **Allgemein**:
 	- Beliebigen "Namen" eingeben   
 	- "Mit höchsten Privilegien ausführen" aktivieren
-	- "Konfigurieren für" und das laufende Betriebssystem auswählen (siehe `berechtigungen_task.PNG`)
+	- "Konfigurieren für" und das laufende Betriebssystem auswählen (siehe [berechtigungen_task.PNG](https://github.com/brembslab/DTSsynchronization/blob/main/installation/berechtigungen_task.PNG))
 - **Trigger**: beliebiger Trigger, z.B. "Bei Anmeldung"
 - **Aktionen**:
 	- "Neu" 
