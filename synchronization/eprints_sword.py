@@ -369,7 +369,7 @@ except (FileNotFoundError, OSError):
 if user is None and net:
     # user = input('Username: ')
     try:
-        (user, accout, password) = net.authenticators(BASE_URL[8:])
+        (user, account, password) = net.authenticators(BASE_URL[8:])
         print(f"User for {BASE_URL[8:]}: {user}")
     except:
         print(f"Error with {BASE_URL[8:]}: {sys.exc_info()[0]}")
@@ -423,7 +423,7 @@ experiment_name = experiment['name']
 # if not this should be fine:
 author = doc['author']
 
-additional_metadata = doc['metadata']
+additional_metadata = doc['meta-data']
 
 # read/write finished flag
 if 'finished' in doc.keys():
@@ -433,13 +433,6 @@ if 'finished' in doc.keys():
 
 if 'epid' in doc.keys():
     epid = doc['epid']
-
-# for one author, we don't need this
-# for line in author_list:
-#   print(line)
-#   author.update(line)
-
-# print(yaml.dump(doc))
 stream.close()
 
 # create a new Eprints id
@@ -451,11 +444,28 @@ orcid = author['id']
 nds = user
 publication_date = time.strftime("%Y-%m-%d")
 date_type = "published"
-oa_type = additional_metadata['oaType']
-created_here = additional_metadata['createdHere']
-data_type = additional_metadata['type']
-subjects = additional_metadata['subjects']
-institutions = additional_metadata['institutions']
+
+oa_type = None
+created_here = None
+data_type = None
+subjects = None
+institutions = None
+
+for metadata_entry in additional_metadata:
+    if 'oa.type' in metadata_entry:
+        oa_type = metadata_entry['oa.type']['name']
+    if 'institution' in metadata_entry:
+        created_here = "yes" if metadata_entry['institution']['id'] == '01eezs655' else "no"
+    if 'data.type' in metadata_entry:
+        data_type = metadata_entry['data.type']['name']
+    if 'subject' in metadata_entry:
+        subjects = metadata_entry['subject']['id']
+    if 'department' in metadata_entry:
+        institutions = metadata_entry['department']['id']
+
+if oa_type is None or created_here is None or data_type is None or subjects is None or institutions is None:
+    print("Please provide all necessary fields: oa.type, institution, data.type, subject, department")
+    exit()
 
 subjects_string = '<subjects>'
 for subject in subjects:

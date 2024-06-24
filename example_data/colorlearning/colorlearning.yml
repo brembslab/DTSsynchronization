@@ -14,12 +14,23 @@ author:
     firstName: Björn
     lastName: Brembs
     id: 0000-0001-7824-7650
-metadata:
-    oaType: "primary"  # gold_paid, gold_free, gold_olh, scoap, hybrid, offsetting, rsc, alliance, copyright_law, sherpa, before1994, individual_contract, no_oa, unknown, other, or leave empty string
-    subjects: ["ddc_2_570"]
-    institutions: ["fak11_02_09"]
-    createdHere: "yes"  # unknown, no, partially
-    type: "dataset"  # article, book_section, monograph, conference_item, book, thesis_rgbg, thesis, teaching_resource, video, image, audio, experiment, software, patent, journal, translation, other
+meta-data:
+- institution:
+    name: Universität Regensburg
+    id: 01eezs655
+- department:
+    name: Neurogenetics
+    id: [fak11_02_09]
+- subject:
+    name: Biology
+    id: [ddc_2_570]
+- data.type:
+    name: dataset
+- licenses:
+    name: ODC-PDDL-1.0
+    uri: http://opendatacommons.org/licenses/pddl
+- oa.type:
+    name: ""
 resources:
 - name: WTB
   title: wild type Berlin
@@ -108,4 +119,4 @@ statistics:
     power: less #first group is tested for being lower than second group (alternatives: greater, two.sided)
     data: 0 #yes      
 mediatype: text/csv/xml
-epid: 58196
+epid: 529

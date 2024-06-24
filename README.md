@@ -51,6 +51,13 @@ Einen *cronjob* anlegen:
 1. `crontab -e`
 2. `@reboot python [PFAD]/DTSsynchronization/synchronization/eprints_sword.py > [PFAD]/DTSsynchronization/synchronization/log.txt 2>&1`
 
+# YAML-Datei
+## Mögliche Werte
+`oa.type['name']: primary, gold_paid, gold_free, gold_olh, scoap, hybrid, offsetting, rsc, alliance, copyright_law, sherpa, before1994, individual_contract, no_oa, unknown, other, or leave empty string`
+`subject['id']: ddc_2_570"`     
+`department['id'']: fak11_02_09`     
+`data.type['name']: dataset, article, book_section, monograph, conference_item, book, thesis_rgbg, thesis, teaching_resource, video, image, audio, experiment, software, patent, journal, translation, other`     
+
 # TODOS
 - [ ] https://github.com/brembslab/DTSsynchronization/security/dependabot
 - [ ] Der Lizenz-Wert kann nur im fertigen XML ersetzt werden (Download bspw. https://epub.uni-regensburg.de/cgi/export/eprint/58196/XML/epub-eprint-58196.xml)
