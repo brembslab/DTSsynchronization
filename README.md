@@ -1,4 +1,6 @@
 # Vorbereitungen
+## Live- oder Test-Server
+In der .env-Datei im Ordner "synchronization" kann angegeben werden, ob das Projekt auf den Live-Publikationsserver hochgeladen werden soll oder zuerst nur testweise auf den Test-Server unter "epub-test.ur.de".
 ## Nutzerdaten hinterlegen
 - Unix: Datei `.netrc` in `/home/<user>` erstellen    
 - Windows: Datei `_netrc` in `%userprofile%` (Alias für `C:\Users\<user>`) erstellen
@@ -36,7 +38,7 @@ Eine Beispiel-Datei mit dem Titel `update_sword.cmd` liegt schon bereit.
 - **Allgemein**:
 	- Beliebigen "Namen" eingeben   
 	- "Mit höchsten Privilegien ausführen" aktivieren
-	- "Konfigurieren für" und das laufende Betriebssystem auswählen (siehe `berechtigungen_task.PNG`)
+	- "Konfigurieren für" und das laufende Betriebssystem auswählen (siehe [berechtigungen_task.PNG](https://github.com/brembslab/DTSsynchronization/blob/main/installation/berechtigungen_task.PNG))
 - **Trigger**: beliebiger Trigger, z.B. "Bei Anmeldung"
 - **Aktionen**:
 	- "Neu" 
