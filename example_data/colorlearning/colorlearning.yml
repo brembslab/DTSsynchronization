@@ -20,10 +20,10 @@ meta-data:
     id: 01eezs655
 - department:
     name: Neurogenetics
-    id: [fak11_02_09]
+    id: fak11_02_09
 - subject:
     name: Biology
-    id: [ddc_2_570]
+    id: ddc_2_570
 - data.type:
     name: dataset
 - licenses:
@@ -119,3 +119,4 @@ statistics:
     power: less #first group is tested for being lower than second group (alternatives: greater, two.sided)
     data: 0 #yes      
 mediatype: text/csv/xml
+epid: 58532

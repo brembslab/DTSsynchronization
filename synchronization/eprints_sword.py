@@ -451,8 +451,8 @@ date_type = "published"
 oa_type = None
 created_here = None
 data_type = None
-subjects = None
-institutions = None
+subject = None
+institution = None
 
 for metadata_entry in additional_metadata:
     if 'oa.type' in metadata_entry:
@@ -462,22 +462,20 @@ for metadata_entry in additional_metadata:
     if 'data.type' in metadata_entry:
         data_type = metadata_entry['data.type']['name']
     if 'subject' in metadata_entry:
-        subjects = metadata_entry['subject']['id']
+        subject = metadata_entry['subject']['id']
     if 'department' in metadata_entry:
-        institutions = metadata_entry['department']['id']
+        institution = metadata_entry['department']['id']
 
-if oa_type is None or created_here is None or data_type is None or subjects is None or institutions is None:
+if oa_type is None or created_here is None or data_type is None or subject is None or institution is None:
     print("Please provide all necessary fields: oa.type, institution, data.type, subject, department")
     exit()
 
 subjects_string = '<subjects>'
-for subject in subjects:
-    subjects_string += '<item>%s</item>' % subject
+subjects_string += '<item>%s</item>' % subject
 subjects_string += '</subjects>'
 
 institutions_string = '<institutions>'
-for institution in institutions:
-    institutions_string += '<item>%s</item>' % institution
+institutions_string += '<item>%s</item>' % institution
 institutions_string += '</institutions>'
 
 ep_xml = """<?xml version='1.0' encoding='utf-8'?>
