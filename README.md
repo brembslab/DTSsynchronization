@@ -55,7 +55,7 @@ Einen *cronjob* anlegen:
 
 # YAML-Datei
 ## Mögliche Werte
-`oa.type['name']: primary, gold_paid, gold_free, gold_olh, scoap, hybrid, offsetting, rsc, alliance, copyright_law, sherpa, before1994, individual_contract, no_oa, unknown, other, or leave empty string`
+`oa.type['name']: primary, gold_paid, gold_free, gold_olh, scoap, hybrid, offsetting, rsc, alliance, copyright_law, sherpa, before1994, individual_contract, no_oa, unknown, other`
 `subject['id']: ddc_2_570"`     
 `department['id'']: fak11_02_09`     
 `data.type['name']: dataset, article, book_section, monograph, conference_item, book, thesis_rgbg, thesis, teaching_resource, video, image, audio, experiment, software, patent, journal, translation, other`     

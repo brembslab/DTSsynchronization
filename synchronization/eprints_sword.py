@@ -415,6 +415,8 @@ doc = yaml.safe_load(stream)
 experiment = doc['experiment']
 title = experiment['title']
 experiment_name = experiment['name']
+description = experiment['description']
+note = doc['licenses']['name']
 # can there be multiple authors?
 # author_list = doc['author']
 # print(author_list)
@@ -436,6 +438,7 @@ if 'epid' in doc.keys():
 stream.close()
 
 # create a new Eprints id
+
 
 # send metadata as xml request
 first_name = author['firstName']
@@ -481,6 +484,8 @@ ep_xml = """<?xml version='1.0' encoding='utf-8'?>
 <eprints xmlns='http://eprints.org/ep2/data/2.0'>
     <eprint>
         <title>%s</title>
+        <abstract>%s</abstract>
+        <note>%s</note>
         <creators>
             <item>
             <name>
@@ -501,10 +506,10 @@ ep_xml = """<?xml version='1.0' encoding='utf-8'?>
         <ispublished>pub</ispublished>
     </eprint>
 </eprints>
-""" % (title, first_name, last_name, orcid, nds, data_type, oa_type, created_here, subjects_string, institutions_string,
+""" % (title, description, note, first_name, last_name, orcid, nds, data_type, oa_type, created_here, subjects_string, institutions_string,
        publication_date, date_type)
 
-print(ep_xml);
+print(ep_xml)
 
 ep_xml_file = create_ep_xml(ep_xml)
 
