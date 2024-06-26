@@ -26,7 +26,7 @@ except:
 
 import urllib3
 
-dotenv_path = Path(f'{Path.cwd()}/{os.path.dirname(__file__)}/.env')
+dotenv_path = Path(f'{Path().absolute()}/.env')
 
 load_dotenv(dotenv_path=dotenv_path)
 
