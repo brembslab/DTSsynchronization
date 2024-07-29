@@ -5,9 +5,6 @@ experiment:
     name: wtb-rut-colorlearning
     title: rutabaga vs. wtb in closed-loop color learning
     description: Comparison of rutabaga mutants and wild type 'Berlin' flies in closed-loop blue-green color learning, requiring angle-integration
-licenses:
-    name: ODC-PDDL-1.0
-    uri: http://opendatacommons.org/licenses/pddl
 author:
     name: bjoern-brembs
     description: Björn Brembs
@@ -31,6 +28,9 @@ meta-data:
     uri: http://opendatacommons.org/licenses/pddl
 - oa.type:
     name: unknown
+- funding:
+    received.funding: no
+    acknowledged.funders: no_funders
 resources:
 - name: WTB
   title: wild type Berlin
@@ -119,4 +119,4 @@ statistics:
     power: less #first group is tested for being lower than second group (alternatives: greater, two.sided)
     data: 0 #yes      
 mediatype: text/csv/xml
-epid: 58532
+epid: 58734

@@ -26,20 +26,21 @@ except:
 
 import urllib3
 
-dotenv_path = Path(f'{Path().absolute()}/.env')
-
+current_file_path = Path(__file__).resolve()
+dotenv_path = Path(f'{current_file_path.parent}/.env')
 load_dotenv(dotenv_path=dotenv_path)
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-USE_LIVE_SERVER = bool(strtobool(os.getenv('USE_LIVE_SERVER', 'True')))
-
+USE_LIVE_SERVER = os.getenv("USE_LIVE_SERVER", "False").lower() in ("true", "1", "t")
 BASE_URL = 'https://epub-test.uni-regensburg.de'
 VERIFY = False
 if USE_LIVE_SERVER:
+    print("Use live server")
     BASE_URL = 'https://epub.uni-regensburg.de'
     VERIFY = True
-# Verify ssl certificate on request, has to be set false for the test server and should be true with valid ssl certificate
+# Verify ssl certificate on request, has to be set false for the test server and should be true with valid ssl
+# certificate
 
 # packages that might have to be installed
 try:
@@ -416,7 +417,6 @@ experiment = doc['experiment']
 title = experiment['title']
 experiment_name = experiment['name']
 description = experiment['description']
-note = doc['licenses']['name']
 # can there be multiple authors?
 # author_list = doc['author']
 # print(author_list)
@@ -453,6 +453,9 @@ created_here = None
 data_type = None
 subject = None
 institution = None
+note = ''
+no_funding = 'TRUE'
+acknowledged_funders = 'no_funders'
 
 for metadata_entry in additional_metadata:
     if 'oa.type' in metadata_entry:
@@ -465,6 +468,16 @@ for metadata_entry in additional_metadata:
         subject = metadata_entry['subject']['id']
     if 'department' in metadata_entry:
         institution = metadata_entry['department']['id']
+    if 'licenses' in metadata_entry:
+        note = metadata_entry['licenses']['name']
+    if 'funding' in metadata_entry:
+        acknowledged_funders = str(metadata_entry['funding']['acknowledged.funders'])
+        if acknowledged_funders == 'True':
+            acknowledged_funders = 'yes'
+        elif acknowledged_funders == 'False':
+            acknowledged_funders = 'no'
+
+        no_funding = 'FALSE' if metadata_entry['funding']['received.funding'] is True else 'TRUE'
 
 if oa_type is None or created_here is None or data_type is None or subject is None or institution is None:
     print("Please provide all necessary fields: oa.type, institution, data.type, subject, department")
@@ -477,6 +490,9 @@ subjects_string += '</subjects>'
 institutions_string = '<institutions>'
 institutions_string += '<item>%s</item>' % institution
 institutions_string += '</institutions>'
+
+nofunding_string = '<nofunding>%s</nofunding>' % no_funding
+acknowledged_funders_string = '<acknowledged_funders>%s</acknowledged_funders>' % acknowledged_funders
 
 ep_xml = """<?xml version='1.0' encoding='utf-8'?>
 <eprints xmlns='http://eprints.org/ep2/data/2.0'>
@@ -502,10 +518,13 @@ ep_xml = """<?xml version='1.0' encoding='utf-8'?>
         <date>%s</date>
         <date_type>%s</date_type>
         <ispublished>pub</ispublished>
+        %s
+        %s
     </eprint>
 </eprints>
-""" % (title, description, note, first_name, last_name, orcid, nds, data_type, oa_type, created_here, subjects_string, institutions_string,
-       publication_date, date_type)
+""" % (title, description, note, first_name, last_name, orcid, nds, data_type, oa_type, created_here, subjects_string,
+       institutions_string,
+       publication_date, date_type, nofunding_string, acknowledged_funders_string)
 
 print(ep_xml)
 
