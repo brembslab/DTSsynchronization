@@ -1,22 +1,12 @@
 ---
-experiment:
-    type: Torquemeter
-    id: SCR_017276
-    name: wtb-rut-colorlearning
-    title: rutabaga vs. wtb in closed-loop color learning
-    description: Comparison of rutabaga mutants and wild type 'Berlin' flies in closed-loop blue-green color learning, requiring angle-integration
-author:
-    name: bjoern-brembs
-    description: Björn Brembs
-    firstName: Björn
-    lastName: Brembs
-    id: 0000-0001-7824-7650
 meta-data:
 - institution:
     name: Universität Regensburg
     id: 01eezs655
 - department:
     name: Neurogenetics
+    title: Institut für Zoologie - Neurogenetik
+    description: The laboratory of Björn Brembs studies the neurobiology of operant learning and spontaneous behavior.
     id: fak11_02_09
 - subject:
     name: Biology
@@ -29,8 +19,26 @@ meta-data:
 - oa.type:
     name: unknown
 - funding:
-    received.funding: no
-    acknowledged.funders: no_funders
+    received.funding: yes
+    acknowledged.funders: yes
+    funder:
+      - name: DFG
+        title: Deutsche Forschungsgemeinschaft
+        description: The Deutsche Forschungsgemeinschaft (DFG, German Research Foundation) is the central self-governing research funding organisation in Germany.
+        id: 018mejw64 #ROR ID
+        data: BR 1892/20-1
+author:
+    name: bjoern-brembs
+    description: Björn Brembs
+    firstName: Björn
+    lastName: Brembs
+    id: 0000-0001-7824-7650
+experiment:
+    type: Torquemeter
+    id: SCR_017276
+    name: wtb-rut-colorlearning
+    title: rutabaga vs. wtb in closed-loop color learning
+    description: Comparison of rutabaga mutants and wild type 'Berlin' flies in closed-loop blue-green color learning, requiring angle-integration
 resources:
 - name: WTB
   title: wild type Berlin
@@ -41,18 +49,15 @@ resources:
   - wtb_color_03.xml
   - wtb_color_04.xml
   - wtb_color_05.xml
-  - wtb_color_06.xml #something not right
-#  - wtb_color_07.xml duplicate
-#  - wtb_color_08.xml duplicate
+  - wtb_color_06.xml
   - wtb_color_09.xml
-#  - wtb_color_10.xml duplicate
   - wtb_color_11.xml
   - wtb_color_12.xml
   - wtb_color_13.xml
   - wtb_color_14.xml
   - wtb_color_15.xml
   - wtb_color_16.xml
-  - wtb_color_17.xml #optomotor shift - drifting?
+  - wtb_color_17.xml
   - wtb_color_18.xml
   - wtb_color_19.xml
   - wtb_color_20.xml
@@ -73,17 +78,13 @@ resources:
   - rut_color_04.xml
   - rut_color_05.xml
   - rut_color_06.xml
-#  - rut_color_07.xml duplicate
-#  - rut_color_08.xml duplicate
   - rut_color_09.xml
-#  - rut_color_10.xml duplicate
   - rut_color_11.xml
   - rut_color_12.xml
   - rut_color_13.xml
   - rut_color_14.xml
   - rut_color_15.xml
   - rut_color_16.xml
-  #-rut_color_17.xml #data corrupted  
   id: FBal0032625
 statistics:
   significance-levels:
@@ -119,4 +120,3 @@ statistics:
     power: less #first group is tested for being lower than second group (alternatives: greater, two.sided)
     data: 0 #yes      
 mediatype: text/csv/xml
-epid: 58734
