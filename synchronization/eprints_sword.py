@@ -14,8 +14,10 @@ from dotenv import load_dotenv
 from pathlib import Path
 import urllib3
 
+# Disable warnings about insecure HTTPS requests (self-signed certificates)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+# Compatibility for Python 2 and Python 3 for in-memory byte streams
 try:
     from StringIO import StringIO as BytesIO
 except:
@@ -45,6 +47,7 @@ USE_LIVE_SERVER = os.getenv("USE_LIVE_SERVER", "False").lower() in ("true", "1",
 VERIFY = USE_LIVE_SERVER
 BASE_URL = 'https://epub.uni-regensburg.de' if USE_LIVE_SERVER else BASE_URL
 
+# Notify if using the live server
 if USE_LIVE_SERVER:
     print("Using live server")
 
@@ -68,6 +71,8 @@ def get_content_type(file_path):
 
 
 def pretty_print_POST(req):
+    """Helper function to print HTTP POST requests in a human-readable format (for debugging)
+def pretty_print_POST(req):"""
     print('{}\n{}\n{}\n\n{}'.format(
         '-----------START-----------',
         req.method + ' ' + req.url,
@@ -232,10 +237,10 @@ def get_document_ids(epid, yaml_timestamp=False, type='fileid'):
                 m = re.search('(?<=file\/)\d+', resp.text)
                 docid.append(m.group(0))
 
-        return docid
+        return docid  # Return the list of document IDs
 
     else:
-        return False
+        return False  # Return False if request failed
 
 
 def create_zips(path):
@@ -318,19 +323,19 @@ if __name__ == "__main__":
     if path is None:
         path = input("File/Directory: ")
 
-    # file/folder exist?
+    # File or folder exist?
     assert os.path.exists(path), "Path not found: " + str(path)
     assert os.path.isdir(path), "No valid directory path " + str(path)
 
-    # os.chdir(path)
     from os.path import expanduser
 
+    # Get the user's home directory
     home = expanduser("~")
 
+    # Load netrc for authentication
     net = load_netrc()
 
     if user is None and net:
-        # user = input('Username: ')
         try:
             (user, account, password) = net.authenticators(BASE_URL[8:])
             print(f"User for {BASE_URL[8:]}: {user}")
@@ -353,7 +358,7 @@ if __name__ == "__main__":
         password = getpass.getpass('Password:')
 
     yamlfile = ""
-
+    # Look for the YAML file in the directory
     for root, dirs, files in os.walk(path):
         for file in files:
             filename, extension = os.path.splitext(file)
@@ -370,6 +375,7 @@ if __name__ == "__main__":
     stream = open(yamlfile, "r")
     doc = yaml.safe_load(stream)
 
+    # Extract metadata from the YAML file
     # Get title and author
     experiment = doc['experiment']
     title = experiment['title']
@@ -395,6 +401,7 @@ if __name__ == "__main__":
         epid = doc['epid']
     stream.close()
 
+    # Prepare the XML content for EPrint metadata
     # Send metadata as xml request
     first_name = author['firstName']
     last_name = author['lastName']
@@ -436,10 +443,12 @@ if __name__ == "__main__":
 
             no_funding = 'FALSE' if metadata_entry['funding']['received.funding'] is True else 'TRUE'
 
+    # Check if all required metadata is present
     if oa_type is None or created_here is None or data_type is None or subject is None or institution is None:
         print("Please provide all necessary fields: oa.type, institution, data.type, subject, department")
         exit()
 
+    # Create strings for subjects and institutions in the XML
     subjects_string = '<subjects>'
     subjects_string += '<item>%s</item>' % subject
     subjects_string += '</subjects>'
@@ -451,9 +460,11 @@ if __name__ == "__main__":
     nofunding_string = '<nofunding>%s</nofunding>' % no_funding
     acknowledged_funders_string = '<acknowledged_funders>%s</acknowledged_funders>' % acknowledged_funders
 
+    # Build the XML metadata for the EPrint
     ep_xml = """<?xml version='1.0' encoding='utf-8'?>
     <eprints xmlns='http://eprints.org/ep2/data/2.0'>
         <eprint>
+            <eprint_status>archive</eprint_status>
             <title>%s</title>
             <abstract>%s</abstract>
             <note>%s</note>
@@ -493,7 +504,7 @@ if __name__ == "__main__":
     headers.update({'Content-Type': 'application/vnd.eprints.data+xml'})
 
     if not epid:
-        # Create new entry
+        # If no EPrint ID, create a new EPrint entry
         data = open(ep_xml_file, 'rb').read()
         epid = send_sword_request(data, content_type='application/vnd.eprints.data+xml', send_file=False,
                                   headers=headers)
@@ -523,6 +534,7 @@ if __name__ == "__main__":
 
     url = ''
 
+    # Fetch document IDs to verify whether updates are needed
     docids = get_document_ids(epid, changeddate)
 
     if docids:
@@ -537,12 +549,12 @@ if __name__ == "__main__":
 
     thisurl = BASE_URL + "/id/eprint/" + str(epid) + "/contents"
 
-    # upload all htmlfiles
+    # Upload all htmlfiles
     htmlpath = path  # + "/evaluations/" oder '/opt/DTSevaluations/example data/colorlearning/evaluations/'
     print(htmlpath)
 
     # indexfile currently has the same name as the measurement
-    # Upload index first and add the others to its epid
+    # Upload the index file (usually the main file) first and add the others to its epid
     indexfile = os.path.join(htmlpath, experiment_name + ".html")
 
     if os.path.isfile(indexfile):
@@ -557,7 +569,7 @@ if __name__ == "__main__":
             print(f"Target url: {curl_target}")
             curl_send_file(indexfile, curl_target, action='POST')
 
-        # Get main docid
+        # Fetch the main document ID after the first upload
         response = get_document_ids(epid, False, 'document')
 
         print("Response of first upload")

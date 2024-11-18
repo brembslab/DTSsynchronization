@@ -2,6 +2,8 @@
 meta-data:
 - institution:
     name: Universität Regensburg
+    title: Universität Regensburg
+    description: The University of Regensburg (UR) is a nationally and internationally highly renowned center of research and teaching with a strong tradition in international cooperation. With its twelve faculties, it has a broad variety of disciplines with an excellent research spectrum, an attractive range of courses and a high sense of social responsibility. The UR stands for diversity, an open-minded approach to the world, and shaping the future.
     id: 01eezs655
 - department:
     name: Neurogenetics
