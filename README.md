@@ -25,7 +25,7 @@ Notwendige Pakete installieren:
 Unter Unix zuerst Berechtigungen vergeben: `chmod a+x [PFAD]/DTSsynchronization/synchronization/eprints_sword.py`    
 
 Skript manuell ausführen (als Administrator unter Windows):       
-`python "[PFAD]/DTSsynchronization/synchronization/eprints_sword.py" -p [PFAD]/colorlearning -v`
+`python "[PFAD]/DTSsynchronization/synchronization/eprints_sword.py" -p [PFAD]/colorlearning -v` oder `python synchronization/eprints_sword.py -p example_data/torquelearning/ -v`
 
 # Skript automatisieren
 ## Windows

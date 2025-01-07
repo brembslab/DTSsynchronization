@@ -7,7 +7,7 @@ import mimetypes
 import zipfile
 import re
 import time
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from zipfile import ZIP_DEFLATED
 import netrc
 from dotenv import load_dotenv
@@ -199,6 +199,9 @@ def get_document_ids(epid, yaml_timestamp=False, type='fileid'):
         response = resp.text
 
         docid = []
+
+        files_did_not_change = False
+
         for match in re.findall(regex, response):
             m = re.search('(?<=\/document\/)\d+', match)
 
@@ -222,16 +225,30 @@ def get_document_ids(epid, yaml_timestamp=False, type='fileid'):
                 print(resp.text)
             resp = s.send(prepared, verify=VERIFY)
             if resp.status_code == 200 or resp.status_code == 201:
-                ep_timestamp = re.search('(?<=\<updated\>).*(?=T)', resp.text)
-                ep_timestamp = datetime.strptime(ep_timestamp.group(0), "%Y-%m-%d").date()
+                pattern = r"<updated>(.*?)</updated>"
+
+                # print(resp.text)
+
+                ep_timestamp = re.search(pattern, resp.text)
+                if ep_timestamp:
+                    ep_timestamp = ep_timestamp.group(1)
+                else:
+                    print("No timestamp found in eprints doc")
+                    return -1
+
+                ep_iso_timestamp = datetime.fromisoformat(
+                    ep_timestamp.replace("Z", "+00:00"))  # Convert to UTC datetime
+                print(ep_iso_timestamp)
+                print(yaml_timestamp)
+
                 if verbose:
                     if yaml_timestamp:
-                        print("Yamlfile last changed: " + date.strftime(yaml_timestamp, "%Y-%m-%d"))
-                    print("Eprints file last modified: " + date.strftime(ep_timestamp, "%Y-%m-%d"))
+                        print("Yamlfile last changed: " + yaml_timestamp.isoformat())
+                    print("Eprints file last modified: " + ep_iso_timestamp.isoformat())
 
                 # Compare timestamps of file with Eprints
-                # If equal or yaml is newer, no update is needed
-                if yaml_timestamp and yaml_timestamp <= ep_timestamp:
+                # If equal or yaml is older (lesser than), then no update is needed
+                if yaml_timestamp and ep_iso_timestamp >= yaml_timestamp:
                     return -1
 
                 m = re.search('(?<=file\/)\d+', resp.text)
@@ -369,7 +386,10 @@ if __name__ == "__main__":
     if verbose:
         print(yamlfile)
 
-    changeddate = date.fromtimestamp(os.path.getmtime(yamlfile))
+    yaml_mtime = os.path.getmtime(yamlfile)
+    yaml_timestamp = datetime.fromtimestamp(yaml_mtime, tz=timezone.utc)  # Convert to UTC datetime
+
+    print(f"yaml_timestamp: {yaml_timestamp}")
 
     # Open yaml file
     stream = open(yamlfile, "r")
@@ -491,9 +511,9 @@ if __name__ == "__main__":
         </eprint>
     </eprints>
     """ % (
-    title, description, note, first_name, last_name, orcid, nds, data_type, oa_type, created_here, subjects_string,
-    institutions_string,
-    publication_date, date_type, nofunding_string, acknowledged_funders_string)
+        title, description, note, first_name, last_name, orcid, nds, data_type, oa_type, created_here, subjects_string,
+        institutions_string,
+        publication_date, date_type, nofunding_string, acknowledged_funders_string)
 
     print(ep_xml)
 
@@ -535,7 +555,7 @@ if __name__ == "__main__":
     url = ''
 
     # Fetch document IDs to verify whether updates are needed
-    docids = get_document_ids(epid, changeddate)
+    docids = get_document_ids(epid, yaml_timestamp)
 
     if docids:
         if docids == -1:
