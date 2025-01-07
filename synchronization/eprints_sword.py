@@ -153,7 +153,7 @@ def send_sword_request(data, content_type, send_file=False, headers=None, url=BA
         return -1
 
 
-def get_document_ids(epid, yaml_timestamp=False, type='fileid'):
+def get_document_ids(epid, yaml_timestamp=False, type='fileid', force=False):
     """
     Gets ids for the pdf and xml zip in eprints
     Parameters
@@ -183,12 +183,15 @@ def get_document_ids(epid, yaml_timestamp=False, type='fileid'):
         r = requests.Request('GET', url, headers=headers)
 
     if verbose:
+        print("get_document_ids")
+        print("--------------------------------------------------------------------")
         print(headers)
     prepared = r.prepare()
 
     # Verify ssl certificate
     resp = s.send(prepared, verify=VERIFY)
     if verbose:
+        print(resp)
         print(resp.status_code)
         print(resp.raise_for_status())
         print(resp.headers)
@@ -199,8 +202,6 @@ def get_document_ids(epid, yaml_timestamp=False, type='fileid'):
         response = resp.text
 
         docid = []
-
-        files_did_not_change = False
 
         for match in re.findall(regex, response):
             m = re.search('(?<=\/document\/)\d+', match)
@@ -219,6 +220,8 @@ def get_document_ids(epid, yaml_timestamp=False, type='fileid'):
 
             prepared = r.prepare()
             if verbose:
+                print("Single doc")
+                print("-------------")
                 print(resp.status_code)
                 print(resp.raise_for_status())
                 print(resp.headers)
@@ -227,19 +230,16 @@ def get_document_ids(epid, yaml_timestamp=False, type='fileid'):
             if resp.status_code == 200 or resp.status_code == 201:
                 pattern = r"<updated>(.*?)</updated>"
 
-                # print(resp.text)
-
                 ep_timestamp = re.search(pattern, resp.text)
                 if ep_timestamp:
                     ep_timestamp = ep_timestamp.group(1)
                 else:
                     print("No timestamp found in eprints doc")
-                    return -1
+                    print("-------------")
+                    continue
 
                 ep_iso_timestamp = datetime.fromisoformat(
                     ep_timestamp.replace("Z", "+00:00"))  # Convert to UTC datetime
-                print(ep_iso_timestamp)
-                print(yaml_timestamp)
 
                 if verbose:
                     if yaml_timestamp:
@@ -248,15 +248,24 @@ def get_document_ids(epid, yaml_timestamp=False, type='fileid'):
 
                 # Compare timestamps of file with Eprints
                 # If equal or yaml is older (lesser than), then no update is needed
-                if yaml_timestamp and ep_iso_timestamp >= yaml_timestamp:
-                    return -1
+                if yaml_timestamp:
+                    ep_hour = ep_iso_timestamp.replace(minute=0, second=0, microsecond=0)
+                    yaml_hour = yaml_timestamp.replace(minute=0, second=0, microsecond=0)
+                    print(yaml_hour)
+                    print(ep_hour)
+                    print(f'force: {force}')
+                    if ep_hour >= yaml_hour and force is False:
+                        print("-------------")
+                        return -1
 
                 m = re.search('(?<=file\/)\d+', resp.text)
                 docid.append(m.group(0))
-
-        return docid  # Return the list of document IDs
+                print("-------------")
+        print("--------------------------------------------------------------------")
+        return docid
 
     else:
+        print("--------------------------------------------------------------------")
         return False  # Return False if request failed
 
 
@@ -328,6 +337,7 @@ if __name__ == "__main__":
                         help='Eprints Id to append or false to create new entry')
     parser.add_argument('--user', '-u', type=str, help='Eprints username')
     parser.add_argument('--verbose', '-v', action='store_true', help='Show additional information')
+    parser.add_argument('--force', action='store_true', help='Force update')
 
     args = parser.parse_args()
 
@@ -335,6 +345,7 @@ if __name__ == "__main__":
     epid = args.epid
     user = args.user
     verbose = args.verbose
+    force = args.force
 
     # If no path set, read from cmd
     if path is None:
@@ -384,12 +395,12 @@ if __name__ == "__main__":
                 yamlfile = os.path.join(root, file)
 
     if verbose:
-        print(yamlfile)
+        print(f"YAML file located at {yamlfile}")
 
     yaml_mtime = os.path.getmtime(yamlfile)
     yaml_timestamp = datetime.fromtimestamp(yaml_mtime, tz=timezone.utc)  # Convert to UTC datetime
 
-    print(f"yaml_timestamp: {yaml_timestamp}")
+    print(f"YAML file was last changed at {yaml_timestamp}")
 
     # Open yaml file
     stream = open(yamlfile, "r")
@@ -417,8 +428,11 @@ if __name__ == "__main__":
         cleanup()
         exit()
 
+    docids = None
     if 'epid' in doc.keys():
         epid = doc['epid']
+        # Compare for file updates before the original yaml file on the server is updated
+        docids = get_document_ids(int(epid), yaml_timestamp, type='fileid', force=force)
     stream.close()
 
     # Prepare the XML content for EPrint metadata
@@ -515,15 +529,16 @@ if __name__ == "__main__":
         institutions_string,
         publication_date, date_type, nofunding_string, acknowledged_funders_string)
 
+    print("XML request")
+    print("--------------------------------------------------------------------")
     print(ep_xml)
+    print("--------------------------------------------------------------------")
 
     ep_xml_file = create_ep_xml(ep_xml)
 
-    headers = {}
-
-    headers.update({'Content-Type': 'application/vnd.eprints.data+xml'})
-
     if not epid:
+        headers = {}
+        headers.update({'Content-Type': 'application/vnd.eprints.data+xml'})
         # If no EPrint ID, create a new EPrint entry
         data = open(ep_xml_file, 'rb').read()
         epid = send_sword_request(data, content_type='application/vnd.eprints.data+xml', send_file=False,
@@ -536,6 +551,9 @@ if __name__ == "__main__":
         epid = m.group(0)
 
         print("Eprint with id " + epid + " was created")
+
+        # Fetch document IDs to verify whether updates are needed
+        docids = get_document_ids(int(epid), yaml_timestamp)
     else:
         # Eprint entry already exists
         print("Eprint with id " + str(epid) + " was updated")
@@ -553,9 +571,6 @@ if __name__ == "__main__":
         # Read as yamlfile and write as plain text because pyyaml messes up the structure
 
     url = ''
-
-    # Fetch document IDs to verify whether updates are needed
-    docids = get_document_ids(epid, yaml_timestamp)
 
     if docids:
         if docids == -1:
