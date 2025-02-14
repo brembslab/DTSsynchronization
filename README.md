@@ -27,10 +27,14 @@ Unter Unix zuerst Berechtigungen vergeben: `chmod a+x [PFAD]/DTSsynchronization/
 Skript manuell ausführen (als Administrator unter Windows):       
 `python "[PFAD]/DTSsynchronization/synchronization/eprints_sword.py" -p [PFAD]/colorlearning -v` oder `python synchronization/eprints_sword.py -p example_data/torquelearning/ -v`
 
+Optionale Parameter:
+- `--force`: Überschreibt bestehende Dateien
+- `--auto`: Unterbindet die manuelle Bestätigung und Prüfung der korrekten EPRINT-Id
+
 # Skript automatisieren
 ## Windows
 ### Skript anlegen
-Eine Datei "update_sword.cmd" anlegen (z.B. im Ordner "DTSsynchronization\synchronization") und folgendes hineinschrieben: `python "[PFAD]\DTSsynchronization\synchronization\eprints_sword.py" -p [PFAD]\colorlearning -v`    
+Eine Datei "update_sword.cmd" anlegen (z.B. im Ordner "DTSsynchronization\synchronization") und folgendes hineinschrieben: `python "[PFAD]\DTSsynchronization\synchronization\eprints_sword.py" -p [PFAD]\colorlearning -v --auto`    
 
 Eine Beispiel-Datei mit dem Titel `update_sword.cmd` liegt schon bereit.
 ### Aktion erstellen
@@ -51,7 +55,7 @@ Zuerst überprüfen, ob ein Skript nach dem Booten ausgeführt werden darf:
 
 Einen *cronjob* anlegen:
 1. `crontab -e`
-2. `@reboot python [PFAD]/DTSsynchronization/synchronization/eprints_sword.py > [PFAD]/DTSsynchronization/synchronization/log.txt 2>&1`
+2. `@reboot python [PFAD]/DTSsynchronization/synchronization/eprints_sword.py --auto > [PFAD]/DTSsynchronization/synchronization/log.txt 2>&1`
 
 # YAML-Datei
 ## Mögliche Werte

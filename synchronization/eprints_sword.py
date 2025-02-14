@@ -338,6 +338,7 @@ if __name__ == "__main__":
     parser.add_argument('--user', '-u', type=str, help='Eprints username')
     parser.add_argument('--verbose', '-v', action='store_true', help='Show additional information')
     parser.add_argument('--force', action='store_true', help='Force update')
+    parser.add_argument("--auto", action="store_true", help="Run without user interaction")
 
     args = parser.parse_args()
 
@@ -373,7 +374,7 @@ if __name__ == "__main__":
     else:
         user = False
 
-    if epid == None:
+    if epid is None:
         epid = False
 
     # User password
@@ -430,9 +431,16 @@ if __name__ == "__main__":
 
     docids = None
     if 'epid' in doc.keys():
-        epid = doc['epid']
-        # Compare for file updates before the original yaml file on the server is updated
-        docids = get_document_ids(int(epid), yaml_timestamp, type='fileid', force=force)
+        if not args.auto:
+            response = input("Please check if the eprint id is associated with the correct entry. Do you want to "
+                             "proceed? (y/n): ").strip().lower()
+            if response != "y":
+                print("Exiting.")
+                sys.exit(1)
+            else:
+                epid = doc['epid']
+                # Compare for file updates before the original yaml file on the server is updated
+                docids = get_document_ids(int(epid), yaml_timestamp, type='fileid', force=force)
     stream.close()
 
     # Prepare the XML content for EPrint metadata
@@ -447,6 +455,7 @@ if __name__ == "__main__":
     oa_type = None
     created_here = None
     data_type = None
+    data_type_status = None
     subject = None
     institution = None
     note = ''
@@ -460,6 +469,7 @@ if __name__ == "__main__":
             created_here = "yes" if metadata_entry['institution']['id'] == '01eezs655' else "no"
         if 'data.type' in metadata_entry:
             data_type = metadata_entry['data.type']['name']
+            data_type_status = metadata_entry['data.type']['status']
         if 'subject' in metadata_entry:
             subject = metadata_entry['subject']['id']
         if 'department' in metadata_entry:
@@ -481,6 +491,9 @@ if __name__ == "__main__":
     if oa_type is None or created_here is None or data_type is None or subject is None or institution is None:
         print("Please provide all necessary fields: oa.type, institution, data.type, subject, department")
         exit()
+
+    if data_type == "dataset" and data_type_status == "ongoing":
+        data_type = "dataset_in_progress"
 
     # Create strings for subjects and institutions in the XML
     subjects_string = '<subjects>'
