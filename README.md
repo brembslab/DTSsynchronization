@@ -69,7 +69,11 @@ Einen *cronjob* anlegen:
 
 `received.funding: yes, no`    
 
-`acknowledged.funders: yes, no, no_funders`     
+`acknowledged.funders: yes, no, no_funders`   
+
+`ispublished: unknown, pub, inpress, submitted, unpub`
+
+`refereed: unknown, yes, not_yet, never`
 
 # TODOS
 - [ ] https://github.com/brembslab/DTSsynchronization/security/dependabot
