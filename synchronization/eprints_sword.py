@@ -830,18 +830,18 @@ if __name__ == "__main__":
                             delete_existing_file(existing_file_id)
                         """
 
-                        if experiment_file != indexfile:
-                            if verbose:
-                                print("Attempt to upload " + filename + extension)
+                        # if experiment_file != indexfile:
+                        if verbose:
+                            print("Attempt to upload " + filename + extension)
 
-                            action = "POST"
-                            if existing_file_id:
-                                action = "PUT"
-                            curl_target = BASE_URL + "/id/document/" + docid + "/contents"
+                        action = "POST"
+                        if existing_file_id:
+                            action = "PUT"
+                        curl_target = BASE_URL + "/id/document/" + docid + "/contents"
 
-                            print(f"Send to {curl_target} via {action}")
+                        print(f"Send to {curl_target} via {action}")
 
-                            curl_send_file(experiment_file, url=curl_target, action=action)
+                        curl_send_file(experiment_file, url=curl_target, action=action)
         # TODO: Upload YAML file
 
     else:
