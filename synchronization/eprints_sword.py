@@ -13,6 +13,7 @@ import netrc
 from dotenv import load_dotenv
 from pathlib import Path
 import urllib3
+import xml.etree.ElementTree as ET
 
 # Disable warnings about insecure HTTPS requests (self-signed certificates)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -146,7 +147,7 @@ def send_sword_request(data, content_type, send_file=False, headers=None, url=BA
     if verbose:
         print(resp.status_code)
         print(resp.raise_for_status())
-        print(resp.headers)
+        # print(resp.headers)
 
     try:
         zip.close()
@@ -162,17 +163,17 @@ def send_sword_request(data, content_type, send_file=False, headers=None, url=BA
         return -1
 
 
-def get_document_ids(epid, yaml_timestamp=False, type='fileid', force=False):
+def get_document_ids(epid, experiment_name, yaml_timestamp=None, type='fileid'):
     """
     Gets ids for the files in eprints
     Parameters
     ----------
     epid : int
         Eprint entry for the current measurements
-    yaml_timestamp : date
+    yaml_timestamp : date or None
         changedate of the yamlfile
 	type : string
-		If type is fileid return the ids of the file regardless of
+		If type is fileid return the ids of the files
     Returns
     -------
     docid : mixed
@@ -180,6 +181,8 @@ def get_document_ids(epid, yaml_timestamp=False, type='fileid', force=False):
         -1 if zips are up to date
         int[] with xml.zip and pdf.zip at [0] and [1] respectively
     """
+    ns = {'atom': 'http://www.w3.org/2005/Atom'}
+
     s = requests.Session()
 
     headers = {'Accept': 'application/atom+xml', 'Accept-Charset': 'UTF-8'}
@@ -203,7 +206,7 @@ def get_document_ids(epid, yaml_timestamp=False, type='fileid', force=False):
         # print(resp)
         # print(resp.status_code)
         # print(resp.raise_for_status())
-        print(main_respponse.headers)
+        # print(main_respponse.headers)
         print(main_respponse.text)
 
     # The main HTML file is returned that looks like this:
@@ -233,86 +236,112 @@ def get_document_ids(epid, yaml_timestamp=False, type='fileid', force=False):
     """
 
     if main_respponse.status_code == 200 or main_respponse.status_code == 201:
+        root_xml = ET.fromstring(main_respponse.text)
+        updated_elem = root_xml.find('atom:updated', ns)
+        if updated_elem is None or updated_elem.text is None:
+            print("No timestamp found in the EPrints doc")
+            return None
+
+        ep_timestamp = updated_elem.text.strip()
+        # Convert the timestamp to a datetime object
+        ep_iso_timestamp = datetime.fromisoformat(ep_timestamp.replace("Z", "+00:00"))
+
+        if verbose:
+            if yaml_timestamp:
+                print("Yamlfile last changed: " + yaml_timestamp.isoformat())
+            print("Eprints file last modified: " + ep_iso_timestamp.isoformat())
+
+        # Compare timestamps of file with Eprints
+        # If equal or yaml is older (lesser than), then no update is needed
+        # TODO: This comparison doesn't work as eprints returns the current time in the updated element
+
+        if yaml_timestamp:
+            ep_hour = ep_iso_timestamp.replace(minute=0, second=0, microsecond=0)
+            yaml_hour = yaml_timestamp.replace(minute=0, second=0, microsecond=0)
+
+            if ep_hour >= yaml_hour:
+                pass
+                # return -1
+
         regex = "text\/html.*\/document\/\d+"
         response_text = main_respponse.text
 
         doc_ids = []
-
+        # Iterate every "contents" of each uploaded file "package"
+        # <content type="text/html" src="https://epub-test.uni-regensburg.de/id/document/4867/contents"/>
         for match in re.findall(regex, response_text):
             m = re.search('(?<=\/document\/)\d+', match)
 
-            if type != 'fileid':
+            # Get the id of the document
+            if type == 'fileid':
+                # Read file ids; Eprints stores the files with ids, independent of the eprint id
+                url = BASE_URL + "/id/document/" + str(m.group(0)) + "/contents"
+
+                if user:
+                    r = requests.Request('GET', url, headers=headers, auth=(user, password))
+                else:
+                    r = requests.Request('GET', url, headers=headers)
+
+                prepared = r.prepare()
+
+                # This is the list of all appended files
+                """
+                <feed
+                        xmlns="http://www.w3.org/2005/Atom"
+                        xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/"
+                        xmlns:xhtml="http://www.w3.org/1999/xhtml"
+                        xmlns:sword="http://purl.org/net/sword/">
+                <title>Publikationsserver der Universität Regensburg: </title>
+                <link rel="alternate" href="https://epub-test.uni-regensburg.de/"/>
+                <updated>2025-03-18T07:19:36Z</updated>
+                <generator uri="http://www.eprints.org/" version="3.3.15">EPrints</generator>
+                <logo>https://epub-test.uni-regensburg.de/images/sitelogo.gif</logo>
+                <id>https://epub-test.uni-regensburg.de/</id>
+                <entry>
+                  <id>https://epub-test.uni-regensburg.de/id/file/30264</id>
+                  <title>apkc_CRISPR_torquelearning_MNs.html</title>
+                  <link rel="alternate" href="http://epub-test.uni-regensburg.de/553/1/apkc_CRISPR_torquelearning_MNs.html"/>
+                </entry>
+                ...
+                """
+
+                single_response = s.send(prepared, verify=VERIFY)
+                if single_response.status_code == 200 or single_response.status_code == 201:
+                    if verbose:
+                        print("/documents overview")
+                        print("-------------")
+                        print(single_response.status_code)
+                        # print(single_response.raise_for_status())
+                        # print(single_response.headers)
+                        # print(single_response.text)
+
+                    # Parse the XML content
+                    root_xml = ET.fromstring(single_response.text)
+                    # Iterate over all <entry> elements in the feed
+                    for entry in root_xml.findall('atom:entry', ns):
+                        title_elem = entry.find('atom:title', ns)
+                        if title_elem is not None and title_elem.text is not None:
+                            # Get the title and remove its file extension, if any
+                            entry_title = title_elem.text.strip()
+                            entry_title_base = os.path.splitext(entry_title)[0]
+                            # Compare the title text (after stripping whitespace) to the experiment name
+                            if entry_title_base == experiment_name.strip():
+                                id_elem = entry.find('atom:id', ns)
+                                if id_elem is not None and id_elem.text is not None:
+                                    # Extract the file id from the URL (the last segment after '/')
+                                    file_id = id_elem.text.strip().split('/')[-1]
+
+                                    print(f"Found file id of main HTML file {experiment_name}: {file_id}")
+                                    doc_ids.append(file_id)
+
+                    print("-------------")
+
+                    # TODO: Check XML and updated tag:
+                    # exit()
+            else:
                 doc_ids.append(m.group(0))
                 continue
 
-            # Read file ids; Eprints stores the files with ids, independent of the eprint id
-            url = BASE_URL + "/id/document/" + str(m.group(0)) + "/contents"
-
-            if user:
-                r = requests.Request('GET', url, headers=headers, auth=(user, password))
-            else:
-                r = requests.Request('GET', url, headers=headers)
-
-            prepared = r.prepare()
-
-            # This is the list of all appended files
-            """
-            ...
-            <entry>
-              <id>https://epub-test.uni-regensburg.de/id/file/30264</id>
-              <title>apkc_CRISPR_torquelearning_MNs.html</title>
-              <link rel="alternate" href="http://epub-test.uni-regensburg.de/553/1/apkc_CRISPR_torquelearning_MNs.html"/>
-            </entry>
-            ...
-            """
-
-            single_response = s.send(prepared, verify=VERIFY)
-            if single_response.status_code == 200 or single_response.status_code == 201:
-                if verbose:
-                    print("Single doc")
-                    print("-------------")
-                    # print(resp.status_code)
-                    # print(resp.raise_for_status())
-                    print(single_response.headers)
-                    print(single_response.text)
-
-                pattern = r"<updated>(.*?)</updated>"
-
-                ep_timestamp = re.search(pattern, single_response.text)
-                if ep_timestamp:
-                    ep_timestamp = ep_timestamp.group(1)
-                else:
-                    print("No timestamp found in eprints doc")
-                    print("-------------")
-                    continue
-
-                ep_iso_timestamp = datetime.fromisoformat(
-                    ep_timestamp.replace("Z", "+00:00"))  # Convert to UTC datetime
-
-                if verbose:
-                    if yaml_timestamp:
-                        print("Yamlfile last changed: " + yaml_timestamp.isoformat())
-                    print("Eprints file last modified: " + ep_iso_timestamp.isoformat())
-
-                # Compare timestamps of file with Eprints
-                # If equal or yaml is older (lesser than), then no update is needed
-                # TODO: This comparison doesn't work as eprints returns the current time in the updated element
-                """
-                if yaml_timestamp:
-                    ep_hour = ep_iso_timestamp.replace(minute=0, second=0, microsecond=0)
-                    yaml_hour = yaml_timestamp.replace(minute=0, second=0, microsecond=0)
-
-                    if ep_hour >= yaml_hour and force is False:
-                        print("-------------")
-                        return -1
-                """
-
-                m = re.search('(?<=file\/)\d+', single_response.text)
-                # The first match is returned (which is the id of the main html file)
-                # F.ex. https://epub-test.uni-regensburg.de/id/file/30264
-
-                doc_ids.append(m.group(0))
-                print("-------------")
         print("--------------------------------------------------------------------")
         print(doc_ids)
         return doc_ids
@@ -740,13 +769,12 @@ if __name__ == "__main__":
 
         print("Eprint with id " + epid + " was created")
 
-        # Fetch document IDs to verify whether updates are needed
-        docids = get_document_ids(int(epid), yaml_timestamp)
+        # Fetch document IDs
+        docids = get_document_ids(int(epid), experiment_name, yaml_timestamp)
     else:
-        # Eprint entry already exists
-        # Compare for file updates before the original yaml file on the server is updated
-        # The id of the main html file is returned (as a list)
-        docids = get_document_ids(int(epid), yaml_timestamp, type='fileid', force=force)
+        # Eprint entry already exists, so get the file ids of the main html files
+        # The ids of the main html files (if more uploaded packages are available)
+        docids = get_document_ids(int(epid), experiment_name, yaml_timestamp, type='fileid')
 
         print("Eprint with id " + str(epid) + " will be updated")
 
@@ -782,7 +810,6 @@ if __name__ == "__main__":
     indexfile = os.path.join(htmlpath, experiment_name + ".html")
     print(f"Index file is {indexfile}")
 
-    # TODO: Files don't get overwritten, they just get added again.
     if os.path.isfile(indexfile):
         if docids and len(docids) >= 1:
             # Main HTML file will be updated
@@ -800,7 +827,7 @@ if __name__ == "__main__":
             curl_send_file(indexfile, curl_target, action='POST')
 
         # Fetch the main document ID after the first upload
-        response = get_document_ids(epid, False, 'document')
+        response = get_document_ids(epid, experiment_name, yaml_timestamp=None, type='document')
 
         print("Response of first upload")
         print(response)
@@ -813,35 +840,49 @@ if __name__ == "__main__":
             print("No docid could be requested")
 
         if docid:
+            # Collect all files that need to process
+            files_to_upload = []
             for root, dirs, files in os.walk(path):
                 for experiment_file in files:
-                    headers = {}
                     filename, extension = os.path.splitext(experiment_file)
-
                     if extension in [".html", ".xml", ".yml"]:
-                        experiment_file = os.path.join(root, experiment_file)
-                        # Check if the file already exists on the server
-                        existing_file_id = get_existing_file_id(epid, os.path.basename(experiment_file))
+                        files_to_upload.append(os.path.join(root, experiment_file))
 
-                        """
-                        if existing_file_id:
-                            print(f"File with id {existing_file_id} already exists!")
-                            # If file exists, delete it first before re-uploading
-                            delete_existing_file(existing_file_id)
-                        """
+            total_files = len(files_to_upload)
+            print(f"Total files to upload: {total_files}")
 
-                        # if experiment_file != indexfile:
-                        if verbose:
-                            print("Attempt to upload " + filename + extension)
+            bar_length = 40
 
-                        action = "POST"
-                        if existing_file_id:
-                            action = "PUT"
-                        curl_target = BASE_URL + "/id/document/" + docid + "/contents"
+            for i, experiment_file in enumerate(files_to_upload):
+                headers = {}
+                filename, extension = os.path.splitext(experiment_file)
 
-                        print(f"Send to {curl_target} via {action}")
+                action = "POST"
 
-                        curl_send_file(experiment_file, url=curl_target, action=action)
+                # Check if the file already exists on the server
+                existing_file_id = get_existing_file_id(epid, os.path.basename(experiment_file))
+                if existing_file_id:
+                    # action = "PUT"
+                    print(f"File with id {existing_file_id} already exists!")
+                    # If file exists, delete it first before re-uploading
+                    delete_existing_file(existing_file_id)
+
+                # if experiment_file != indexfile:
+                if verbose:
+                    print("Attempt to upload " + filename + extension)
+
+                curl_target = BASE_URL + "/id/document/" + docid + "/contents"
+
+                print(f"Send to {curl_target} via {action}")
+
+                curl_send_file(experiment_file, url=curl_target, action=action)
+
+                # Update the progress bar
+                progress = (i + 1) / total_files
+                block = int(round(bar_length * progress))
+                text = f"\rUploading: [{'#' * block + '-' * (bar_length - block)}] {progress * 100:.1f}% ({i + 1}/{total_files})"
+                sys.stdout.write(text)
+                sys.stdout.flush()
         # TODO: Upload YAML file
 
     else:
