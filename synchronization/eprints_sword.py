@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 import urllib3
 import xml.etree.ElementTree as ET
+import logging
 
 # Disable warnings about insecure HTTPS requests (self-signed certificates)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -28,13 +29,13 @@ except:
 try:
     import yaml
 except ImportError:
-    print("The 'pyyaml' package is not installed. Please install it by running:\npip install pyyaml")
+    logging.warning("The 'pyyaml' package is not installed. Please install it by running:\npip install pyyaml")
     sys.exit(1)  # Exit with a non-zero status code to indicate an error
 
 try:
     import requests
 except ImportError:
-    print("The 'requests' package is not installed. Please install it by running:\npip install requests")
+    logging.warning("The 'requests' package is not installed. Please install it by running:\npip install requests")
     sys.exit(1)  # Exit with a non-zero status code to indicate an error
 
 # Load environment variables
@@ -50,7 +51,7 @@ BASE_URL = 'https://epub.uni-regensburg.de' if USE_LIVE_SERVER else BASE_URL
 
 # Notify if using the live server
 if USE_LIVE_SERVER:
-    print("Using live server")
+    logging.debug("Using live server")
 
 # Handle compatibility between Python 2 and Python 3 for user input functions
 try:
@@ -74,7 +75,7 @@ def get_content_type(file_path):
 def pretty_print_POST(req):
     """Helper function to print HTTP POST requests in a human-readable format (for debugging)
 def pretty_print_POST(req):"""
-    print('{}\n{}\n{}\n\n{}'.format(
+    logging.debug('{}\n{}\n{}\n\n{}'.format(
         '-----------START-----------',
         req.method + ' ' + req.url,
         '\n'.join('{}: {}'.format(k, v) for k, v in req.headers.items()),
@@ -97,14 +98,14 @@ def curl_send_file(file, url, action='POST'):
             '-H "Content-Type: text/html" -H "Content-Disposition: attachment; filename={filename}" {url}'
         ).format(action=action, file=file, filename=filename, url=url)
 
-    print("Running command:", cmd)
+    logging.debug("Running command:", cmd)
 
     # Using shell=True, pass the command as a string.
     result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
-    print("Return code:", result.returncode)
-    print("Standard Output:\n", result.stdout)
-    print("Standard Error:\n", result.stderr)
+    logging.debug("Return code:", result.returncode)
+    logging.debug("Standard Output:\n", result.stdout)
+    logging.debug("Standard Error:\n", result.stderr)
 
     return result
 
@@ -145,9 +146,9 @@ def send_sword_request(data, content_type, send_file=False, headers=None, url=BA
     # Verify ssl certificate
     resp = s.send(prepared, verify=VERIFY)
     if verbose:
-        print(resp.status_code)
-        print(resp.raise_for_status())
-        # print(resp.headers)
+        logging.debug(resp.status_code)
+        logging.debug(resp.raise_for_status())
+        # logging.debug(resp.headers)
 
     try:
         zip.close()
@@ -195,19 +196,19 @@ def get_document_ids(epid, experiment_name, yaml_timestamp=None, type='fileid'):
         r = requests.Request('GET', url, headers=headers)
 
     if verbose:
-        print("get_document_ids")
-        print("--------------------------------------------------------------------")
-        # print(headers)
+        logging.debug("get_document_ids")
+        logging.debug("--------------------------------------------------------------------")
+        # logging.debug(headers)
     prepared = r.prepare()
 
     # Verify ssl certificate
     main_respponse = s.send(prepared, verify=VERIFY)
     if verbose:
-        # print(resp)
-        # print(resp.status_code)
-        # print(resp.raise_for_status())
-        # print(main_respponse.headers)
-        print(main_respponse.text)
+        # logging.debug(resp)
+        # logging.debug(resp.status_code)
+        # logging.debug(resp.raise_for_status())
+        # logging.debug(main_respponse.headers)
+        logging.debug(main_respponse.text)
 
     # The main HTML file is returned that looks like this:
     """
@@ -239,7 +240,7 @@ def get_document_ids(epid, experiment_name, yaml_timestamp=None, type='fileid'):
         root_xml = ET.fromstring(main_respponse.text)
         updated_elem = root_xml.find('atom:updated', ns)
         if updated_elem is None or updated_elem.text is None:
-            print("No timestamp found in the EPrints doc")
+            logging.debug("No timestamp found in the EPrints doc")
             return None
 
         ep_timestamp = updated_elem.text.strip()
@@ -248,8 +249,8 @@ def get_document_ids(epid, experiment_name, yaml_timestamp=None, type='fileid'):
 
         if verbose:
             if yaml_timestamp:
-                print("Yamlfile last changed: " + yaml_timestamp.isoformat())
-            print("Eprints file last modified: " + ep_iso_timestamp.isoformat())
+                logging.debug("Yamlfile last changed: " + yaml_timestamp.isoformat())
+            logging.debug("Eprints file last modified: " + ep_iso_timestamp.isoformat())
 
         # Compare timestamps of file with Eprints
         # If equal or yaml is older (lesser than), then no update is needed
@@ -308,9 +309,9 @@ def get_document_ids(epid, experiment_name, yaml_timestamp=None, type='fileid'):
                 single_response = s.send(prepared, verify=VERIFY)
                 if single_response.status_code == 200 or single_response.status_code == 201:
                     if verbose:
-                        print("/documents overview")
-                        print("-------------")
-                        print(single_response.status_code)
+                        logging.debug("/documents overview")
+                        logging.debug("-------------")
+                        logging.debug(single_response.status_code)
                         # print(single_response.raise_for_status())
                         # print(single_response.headers)
                         # print(single_response.text)
@@ -331,10 +332,10 @@ def get_document_ids(epid, experiment_name, yaml_timestamp=None, type='fileid'):
                                     # Extract the file id from the URL (the last segment after '/')
                                     file_id = id_elem.text.strip().split('/')[-1]
 
-                                    print(f"Found file id of main HTML file {experiment_name}: {file_id}")
+                                    logging.debug(f"Found file id of main HTML file {experiment_name}: {file_id}")
                                     doc_ids.append(file_id)
 
-                    print("-------------")
+                    logging.debug("-------------")
 
                     # TODO: Check XML and updated tag:
                     # exit()
@@ -342,26 +343,25 @@ def get_document_ids(epid, experiment_name, yaml_timestamp=None, type='fileid'):
                 doc_ids.append(m.group(0))
                 continue
 
-        print("--------------------------------------------------------------------")
-        print(doc_ids)
+        logging.debug("--------------------------------------------------------------------")
+        logging.debug(doc_ids)
         return doc_ids
 
     else:
-        print("--------------------------------------------------------------------")
+        logging.debug("--------------------------------------------------------------------")
         return False  # Return False if request failed
 
 
 def delete_existing_file(file_id):
     """Delete an existing file from EPrints before re-uploading."""
     url = BASE_URL + "/id/file/" + str(file_id)
-    print(url)
     headers = {'Authorization': f'Basic {user}:{password}'}
 
     response = requests.delete(url, headers=headers, verify=VERIFY)
     if response.status_code == 200 or response.status_code == 204:
-        print(f"Deleted existing file ID {file_id} successfully.")
+        logging.debug(f"Deleted existing file ID {file_id} successfully.")
     else:
-        print(f"Failed to delete file ID {file_id}: {response.status_code} - {response.text}")
+        logging.debug(f"Failed to delete file ID {file_id}: {response.status_code} - {response.text}")
 
 
 def get_existing_file_id(epid, filename):
@@ -387,8 +387,8 @@ def get_existing_file_id(epid, filename):
     prepared = r.prepare()
     resp = s.send(prepared, verify=VERIFY)
 
-    print(f"GET {url}")
-    # print(resp.text)
+    logging.debug(f"GET {url}")
+    # logging.debug(resp.text)
 
     if resp.status_code == 200 or resp.status_code == 201:
         # Extract all file entries from the response
@@ -406,12 +406,12 @@ def get_existing_file_id(epid, filename):
 
             if matched_doc_id:
                 document_id = matched_doc_id.group()
-                print("Document ID:", document_id)
+                logging.debug("Document ID:", document_id)
             else:
-                print("Document ID not found.")
+                logging.debug("Document ID not found.")
         else:
-            print("No match found")
-            # print(resp.text)
+            logging.debug("No match found")
+            # logging.debug(resp.text)
 
         if document_id is None:
             return None
@@ -428,17 +428,17 @@ def get_existing_file_id(epid, filename):
 
         single_response = s.send(prepared, verify=VERIFY)
 
-        # print(single_response.text)
+        # logging.debug(single_response.text)
 
         title_regex = r"<title>(.*?)</title>"
         filenames = re.findall(title_regex, single_response.text)
 
-        print("File names on server:")
-        print(filenames)
+        logging.debug("File names on server:")
+        logging.debug(filenames)
 
         # Step 2: Check if the given filename exists
         if filename.strip() not in [name.strip() for name in filenames]:
-            print(f"File '{filename}' does not exist on the server.")
+            logging.debug(f"File '{filename}' does not exist on the server.")
             return None  # File not found
 
         # Step 3: If filename exists, find its corresponding file ID
@@ -447,10 +447,10 @@ def get_existing_file_id(epid, filename):
 
         if match:
             file_id = match.group(1)
-            print(f"✅ File '{filename}' exists on the server with file ID {file_id}.")
+            logging.debug(f"✅ File '{filename}' exists on the server with file ID {file_id}.")
             return file_id  # Return the corresponding file ID
 
-    print(f"No existing file '{filename}' found on the server.")
+    logging.debug(f"No existing file '{filename}' found on the server.")
     return None  # Return None if no match is found
 
 
@@ -555,7 +555,7 @@ def create_ep_xml_schema(doc):
 
     # Check if all required metadata is present
     if oa_type is None or created_here is None or data_type is None or subject is None or institution is None:
-        print("Please provide all necessary fields: oa.type, institution, data.type, subject, department")
+        logging.warning("Please provide all necessary fields: oa.type, institution, data.type, subject, department")
         exit()
 
     if data_type == "dataset" and data_type_status == "ongoing":
@@ -618,10 +618,10 @@ def create_ep_xml_schema(doc):
         publication_date, date_type, is_published_string, nofunding_string, acknowledged_funders_string,
         refereed_string)
 
-    print("XML request")
-    print("--------------------------------------------------------------------")
-    print(ep_xml)
-    print("--------------------------------------------------------------------")
+    logging.debug("XML request")
+    logging.debug("--------------------------------------------------------------------")
+    logging.debug(ep_xml)
+    logging.debug("--------------------------------------------------------------------")
 
     return ep_xml
 
@@ -635,7 +635,7 @@ def load_netrc():
         try:
             return netrc.netrc(os.path.join(home, "_netrc"))
         except Exception as err:
-            print(f"Netrc error: {err}")
+            logging.warning(f"Netrc error: {err}")
             return None
 
 
@@ -666,6 +666,12 @@ if __name__ == "__main__":
     verbose = args.verbose
     force = args.force
 
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.INFO,
+        format='%(asctime)s %(levelname)s: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+
     # If no path set, read from cmd
     if path is None:
         path = input("File/Directory: ")
@@ -687,9 +693,9 @@ if __name__ == "__main__":
     if user is None and net:
         try:
             (user, account, password) = net.authenticators(BASE_URL[8:])
-            print(f"User for {BASE_URL[8:]}: {user}")
+            logging.debug(f"User for {BASE_URL[8:]}: {user}")
         except:
-            print(f"Error with {BASE_URL[8:]}: {sys.exc_info()[0]}")
+            logging.debug(f"Error with {BASE_URL[8:]}: {sys.exc_info()[0]}")
             user = False
     else:
         user = False
@@ -716,12 +722,12 @@ if __name__ == "__main__":
                 yamlfile = os.path.join(root, file)
 
     if verbose:
-        print(f"YAML file located at {yamlfile}")
+        logging.debug(f"YAML file located at {yamlfile}")
 
     yaml_mtime = os.path.getmtime(yamlfile)
     yaml_timestamp = datetime.fromtimestamp(yaml_mtime, tz=timezone.utc)  # Convert to UTC datetime
 
-    print(f"Local YAML file was last changed at {yaml_timestamp}")
+    logging.debug(f"Local YAML file was last changed at {yaml_timestamp}")
 
     # Open yaml file
     stream = open(yamlfile, "r")
@@ -730,7 +736,7 @@ if __name__ == "__main__":
     # TODO: What does this do?
     # Read and write finished flag
     if 'finished' in doc.keys():
-        print("Messung abgeschlossen!")
+        logging.info("Experiment completed!")
         cleanup()
         exit()
 
@@ -742,7 +748,7 @@ if __name__ == "__main__":
             response = input("Please check if the eprint id is associated with the correct entry. Do you want to "
                              "proceed? (y/n): ").strip().lower()
             if response != "y":
-                print("Exiting.")
+                logging.info("Exiting ...")
                 sys.exit(1)
 
     experiment_name = doc['experiment']['name']
@@ -762,12 +768,12 @@ if __name__ == "__main__":
                                   headers=headers)
 
         if verbose:
-            print("EPID: " + str(epid))
+            logging.debug("EPID: " + str(epid))
 
         m = re.search('[0-9]+$', str(epid))
         epid = m.group(0)
 
-        print("Eprint with id " + epid + " was created")
+        logging.debug("Eprint with id " + epid + " was created")
 
         # Fetch document IDs
         docids = get_document_ids(int(epid), experiment_name, yaml_timestamp)
@@ -776,10 +782,10 @@ if __name__ == "__main__":
         # The ids of the main html files (if more uploaded packages are available)
         docids = get_document_ids(int(epid), experiment_name, yaml_timestamp, type='fileid')
 
-        print("Eprint with id " + str(epid) + " will be updated")
+        logging.debug("Eprint with id " + str(epid) + " will be updated")
 
-    print("docids:")
-    print(docids)
+    logging.debug("docids:")
+    logging.debug(docids)
 
     # Update yamlfile stream
     stream = open(yamlfile, "r")
@@ -796,7 +802,7 @@ if __name__ == "__main__":
     url = ''
 
     if docids and docids == -1:
-        print("Files already up to date")
+        logging.info("Files already up to date")
         cleanup()
         exit()
 
@@ -808,36 +814,36 @@ if __name__ == "__main__":
     # indexfile currently has the same name as the measurement
     # Upload the index file (usually the main file) first and add the others to its epid
     indexfile = os.path.join(htmlpath, experiment_name + ".html")
-    print(f"Index file is {indexfile}")
+    logging.debug(f"Index file is {indexfile}")
 
     if os.path.isfile(indexfile):
         if docids and len(docids) >= 1:
             # Main HTML file will be updated
-            print("Add files to an existing entry")
+            logging.debug("Add files to an existing entry")
             curl_target = BASE_URL + "/id/file/" + str(docids[0])
-            print(f"Target url: {curl_target}")
+            logging.debug(f"Target url: {curl_target}")
 
             curl_send_file(indexfile, curl_target, action='PUT')
         else:
             curl_target = BASE_URL + "/id/eprint/" + str(epid) + "/contents"
-            print(f"Adding files to a new entry {epid}")
-            print(f"File tu upload: {indexfile}")
-            print(f"Target url: {curl_target}")
+            logging.debug(f"Adding files to a new entry {epid}")
+            logging.debug(f"File tu upload: {indexfile}")
+            logging.debug(f"Target url: {curl_target}")
 
             curl_send_file(indexfile, curl_target, action='POST')
 
         # Fetch the main document ID after the first upload
         response = get_document_ids(epid, experiment_name, yaml_timestamp=None, type='document')
 
-        print("Response of first upload")
-        print(response)
+        logging.debug("Response of first upload")
+        logging.debug(response)
 
         docid = False
         if response and len(response) > 0:
             docid = response[0]
-            print(f"Docid {docid} was request")
+            logging.debug(f"Docid {docid} was request")
         else:
-            print("No docid could be requested")
+            logging.debug("No docid could be requested")
 
         if docid:
             # Collect all files that need to process
@@ -849,7 +855,7 @@ if __name__ == "__main__":
                         files_to_upload.append(os.path.join(root, experiment_file))
 
             total_files = len(files_to_upload)
-            print(f"Total files to upload: {total_files}")
+            logging.info(f"Total files to upload: {total_files}")
 
             bar_length = 40
 
@@ -863,17 +869,17 @@ if __name__ == "__main__":
                 existing_file_id = get_existing_file_id(epid, os.path.basename(experiment_file))
                 if existing_file_id:
                     # action = "PUT"
-                    print(f"File with id {existing_file_id} already exists!")
+                    logging.debug(f"File with id {existing_file_id} already exists!")
                     # If file exists, delete it first before re-uploading
                     delete_existing_file(existing_file_id)
 
                 # if experiment_file != indexfile:
                 if verbose:
-                    print("Attempt to upload " + filename + extension)
+                    logging.debug("Attempt to upload " + filename + extension)
 
                 curl_target = BASE_URL + "/id/document/" + docid + "/contents"
 
-                print(f"Send to {curl_target} via {action}")
+                logging.debug(f"Send to {curl_target} via {action}")
 
                 curl_send_file(experiment_file, url=curl_target, action=action)
 
@@ -883,10 +889,12 @@ if __name__ == "__main__":
                 text = f"\rUploading: [{'#' * block + '-' * (bar_length - block)}] {progress * 100:.1f}% ({i + 1}/{total_files})"
                 sys.stdout.write(text)
                 sys.stdout.flush()
+            print()
+            logging.info("Upload finished")
         # TODO: Upload YAML file
 
     else:
-        print("HTML file doesn't exist")
+        logging.info("HTML file doesn't exist")
 
     # Delete the ep_xml file
     cleanup()
