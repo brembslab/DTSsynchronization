@@ -82,21 +82,30 @@ def pretty_print_POST(req):"""
 
 
 def curl_send_file(file, url, action='POST'):
-    """Send a file using the curl command."""
+    """Send a file using the curl command with shell=True and capture output."""
     _, filename = os.path.split(file)
 
-    # Remark: '--next' needed to be removed
     if user:
-        args = ['curl', '-X ' + action, '-ik', '-u ' + user + ':' + password, '--data-binary "@' + file + '"',
-                '-H "Content-Type: text/html"', '-H "Content-Disposition: attachment; filename=' + filename + '"', url]
+        cmd = (
+            'curl -X {action} -ik -u "{user}:{password}" --data-binary "@{file}" '
+            '-H "Content-Type: text/html" -H "Content-Disposition: attachment; filename={filename}" {url}'
+        ).format(action=action, user=user, password=password, file=file, filename=filename, url=url)
     else:
-        # user + password can be substituted
-        args = ['curl', '-X ' + action, '-ik', '--netrc', '--data-binary "@' + file + '"',
-                '-H "Content-Type: text/html"',
-                '-H "Content-Disposition: attachment; filename=' + filename + '"', url]
+        cmd = (
+            'curl -X {action} -ik --netrc --data-binary "@{file}" '
+            '-H "Content-Type: text/html" -H "Content-Disposition: attachment; filename={filename}" {url}'
+        ).format(action=action, file=file, filename=filename, url=url)
 
-    print(' '.join(args))
-    subprocess.call(' '.join(args), shell=True, stdout=subprocess.PIPE)
+    print("Running command:", cmd)
+
+    # Using shell=True, pass the command as a string.
+    result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+    print("Return code:", result.returncode)
+    print("Standard Output:\n", result.stdout)
+    print("Standard Error:\n", result.stderr)
+
+    return result
 
 
 def send_sword_request(data, content_type, send_file=False, headers=None, url=BASE_URL + '/id/contents', action='POST'):
@@ -155,7 +164,7 @@ def send_sword_request(data, content_type, send_file=False, headers=None, url=BA
 
 def get_document_ids(epid, yaml_timestamp=False, type='fileid', force=False):
     """
-    Gets ids for the pdf and xml zip in eprints
+    Gets ids for the files in eprints
     Parameters
     ----------
     epid : int
@@ -185,32 +194,58 @@ def get_document_ids(epid, yaml_timestamp=False, type='fileid', force=False):
     if verbose:
         print("get_document_ids")
         print("--------------------------------------------------------------------")
-        print(headers)
+        # print(headers)
     prepared = r.prepare()
 
     # Verify ssl certificate
-    resp = s.send(prepared, verify=VERIFY)
+    main_respponse = s.send(prepared, verify=VERIFY)
     if verbose:
-        print(resp)
-        print(resp.status_code)
-        print(resp.raise_for_status())
-        print(resp.headers)
-        print(resp.text)
+        # print(resp)
+        # print(resp.status_code)
+        # print(resp.raise_for_status())
+        print(main_respponse.headers)
+        print(main_respponse.text)
 
-    if resp.status_code == 200 or resp.status_code == 201:
+    # The main HTML file is returned that looks like this:
+    """
+    <?xml version="1.0" encoding="utf-8" ?>
+    <feed
+        xmlns="http://www.w3.org/2005/Atom"
+        xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml"
+        xmlns:sword="http://purl.org/net/sword/"
+    >
+    <title>Publikationsserver der Universität Regensburg: </title>
+    <link rel="alternate" href="https://epub-test.uni-regensburg.de/"/>
+    <updated>2025-03-14T09:37:16Z</updated>
+    <generator uri="http://www.eprints.org/" version="3.3.15">EPrints</generator>
+    <logo>https://epub-test.uni-regensburg.de/images/sitelogo.gif</logo>
+    <id>https://epub-test.uni-regensburg.de/</id>
+    <entry>
+      <id>https://epub-test.uni-regensburg.de/id/document/4853</id>
+      <title>  HTML </title>
+      <link rel="contents" href="https://epub-test.uni-regensburg.de/id/document/4853/contents"/>
+      <link rel="edit-media" href="https://epub-test.uni-regensburg.de/id/document/4853/contents"/>
+      <summary>  HTML   </summary>
+      <content type="text/html" src="https://epub-test.uni-regensburg.de/id/document/4853/contents"/>
+    </entry>
+    </feed>
+    """
+
+    if main_respponse.status_code == 200 or main_respponse.status_code == 201:
         regex = "text\/html.*\/document\/\d+"
-        response = resp.text
+        response_text = main_respponse.text
 
-        docid = []
+        doc_ids = []
 
-        for match in re.findall(regex, response):
+        for match in re.findall(regex, response_text):
             m = re.search('(?<=\/document\/)\d+', match)
 
             if type != 'fileid':
-                docid.append(m.group(0))
+                doc_ids.append(m.group(0))
                 continue
 
-            # Read fileids; Eprints stores the files with ids, independent from the eprint id
+            # Read file ids; Eprints stores the files with ids, independent of the eprint id
             url = BASE_URL + "/id/document/" + str(m.group(0)) + "/contents"
 
             if user:
@@ -219,18 +254,31 @@ def get_document_ids(epid, yaml_timestamp=False, type='fileid', force=False):
                 r = requests.Request('GET', url, headers=headers)
 
             prepared = r.prepare()
-            if verbose:
-                print("Single doc")
-                print("-------------")
-                print(resp.status_code)
-                print(resp.raise_for_status())
-                print(resp.headers)
-                print(resp.text)
-            resp = s.send(prepared, verify=VERIFY)
-            if resp.status_code == 200 or resp.status_code == 201:
+
+            # This is the list of all appended files
+            """
+            ...
+            <entry>
+              <id>https://epub-test.uni-regensburg.de/id/file/30264</id>
+              <title>apkc_CRISPR_torquelearning_MNs.html</title>
+              <link rel="alternate" href="http://epub-test.uni-regensburg.de/553/1/apkc_CRISPR_torquelearning_MNs.html"/>
+            </entry>
+            ...
+            """
+
+            single_response = s.send(prepared, verify=VERIFY)
+            if single_response.status_code == 200 or single_response.status_code == 201:
+                if verbose:
+                    print("Single doc")
+                    print("-------------")
+                    # print(resp.status_code)
+                    # print(resp.raise_for_status())
+                    print(single_response.headers)
+                    print(single_response.text)
+
                 pattern = r"<updated>(.*?)</updated>"
 
-                ep_timestamp = re.search(pattern, resp.text)
+                ep_timestamp = re.search(pattern, single_response.text)
                 if ep_timestamp:
                     ep_timestamp = ep_timestamp.group(1)
                 else:
@@ -248,25 +296,133 @@ def get_document_ids(epid, yaml_timestamp=False, type='fileid', force=False):
 
                 # Compare timestamps of file with Eprints
                 # If equal or yaml is older (lesser than), then no update is needed
+                # TODO: This comparison doesn't work as eprints returns the current time in the updated element
+                """
                 if yaml_timestamp:
                     ep_hour = ep_iso_timestamp.replace(minute=0, second=0, microsecond=0)
                     yaml_hour = yaml_timestamp.replace(minute=0, second=0, microsecond=0)
-                    print(yaml_hour)
-                    print(ep_hour)
-                    print(f'force: {force}')
+
                     if ep_hour >= yaml_hour and force is False:
                         print("-------------")
                         return -1
+                """
 
-                m = re.search('(?<=file\/)\d+', resp.text)
-                docid.append(m.group(0))
+                m = re.search('(?<=file\/)\d+', single_response.text)
+                # The first match is returned (which is the id of the main html file)
+                # F.ex. https://epub-test.uni-regensburg.de/id/file/30264
+
+                doc_ids.append(m.group(0))
                 print("-------------")
         print("--------------------------------------------------------------------")
-        return docid
+        print(doc_ids)
+        return doc_ids
 
     else:
         print("--------------------------------------------------------------------")
         return False  # Return False if request failed
+
+
+def delete_existing_file(file_id):
+    """Delete an existing file from EPrints before re-uploading."""
+    url = BASE_URL + "/id/file/" + str(file_id)
+    print(url)
+    headers = {'Authorization': f'Basic {user}:{password}'}
+
+    response = requests.delete(url, headers=headers, verify=VERIFY)
+    if response.status_code == 200 or response.status_code == 204:
+        print(f"Deleted existing file ID {file_id} successfully.")
+    else:
+        print(f"Failed to delete file ID {file_id}: {response.status_code} - {response.text}")
+
+
+def get_existing_file_id(epid, filename):
+    """
+    Check if a file with the same name already exists on the EPrints server.
+
+    Parameters:
+    - epid (int): The EPrints entry ID.
+    - filename (str): The name of the file to check.
+
+    Returns:
+    - str: The file ID if found, else None.
+    """
+    s = requests.Session()
+    headers = {'Accept': 'application/atom+xml', 'Accept-Charset': 'UTF-8'}
+    url = f"{BASE_URL}/id/eprint/{epid}/contents"
+
+    if user:
+        r = requests.Request('GET', url, headers=headers, auth=(user, password))
+    else:
+        r = requests.Request('GET', url, headers=headers)
+
+    prepared = r.prepare()
+    resp = s.send(prepared, verify=VERIFY)
+
+    print(f"GET {url}")
+    # print(resp.text)
+
+    if resp.status_code == 200 or resp.status_code == 201:
+        # Extract all file entries from the response
+        regex = "text\/html.*\/document\/\d+"
+        match = re.search(regex, resp.text)
+
+        document_id = None
+
+        if match:
+            # Extract matched text from `MatchObject`
+            matched_text = match.group()
+
+            # Now apply the second regex to extract only the document ID
+            matched_doc_id = re.search(r"(?<=\/document\/)\d+", matched_text)
+
+            if matched_doc_id:
+                document_id = matched_doc_id.group()
+                print("Document ID:", document_id)
+            else:
+                print("Document ID not found.")
+        else:
+            print("No match found")
+            # print(resp.text)
+
+        if document_id is None:
+            return None
+
+        # Read file ids; Eprints stores the files with ids, independent of the eprint id
+        url = BASE_URL + "/id/document/" + str(document_id) + "/contents"
+
+        if user:
+            r = requests.Request('GET', url, headers=headers, auth=(user, password))
+        else:
+            r = requests.Request('GET', url, headers=headers)
+
+        prepared = r.prepare()
+
+        single_response = s.send(prepared, verify=VERIFY)
+
+        # print(single_response.text)
+
+        title_regex = r"<title>(.*?)</title>"
+        filenames = re.findall(title_regex, single_response.text)
+
+        print("File names on server:")
+        print(filenames)
+
+        # Step 2: Check if the given filename exists
+        if filename.strip() not in [name.strip() for name in filenames]:
+            print(f"File '{filename}' does not exist on the server.")
+            return None  # File not found
+
+        # Step 3: If filename exists, find its corresponding file ID
+        entry_regex = r"<entry>\s*<id>.*?/file/(\d+)</id>\s*<title>" + re.escape(filename) + r"</title>"
+        match = re.search(entry_regex, single_response.text, re.DOTALL)
+
+        if match:
+            file_id = match.group(1)
+            print(f"✅ File '{filename}' exists on the server with file ID {file_id}.")
+            return file_id  # Return the corresponding file ID
+
+    print(f"No existing file '{filename}' found on the server.")
+    return None  # Return None if no match is found
 
 
 def create_zips(path):
@@ -295,7 +451,7 @@ def create_zips(path):
     return [yamlfile, xmlzip.filename, pdfzip.filename]
 
 
-def create_ep_xml(xmlcontent):
+def create_ep_xml_file(xmlcontent):
     """Create XML file for the EPrint metadata."""
     filename = 'ep_metadata.xml'
     stream = open(filename, 'w')
@@ -306,6 +462,139 @@ def create_ep_xml(xmlcontent):
     stream.close()
 
     return filename
+
+
+def create_ep_xml_schema(doc):
+    # Extract metadata from the YAML file
+    experiment = doc['experiment']
+    title = experiment['title']
+
+    description = experiment['description']
+    author = doc['author']
+
+    additional_metadata = doc['meta-data']
+
+    # Prepare the XML content for EPrint metadata
+    # Send metadata as xml request
+    first_name = author['firstName']
+    last_name = author['lastName']
+    orcid = author['id']
+    nds = user
+    publication_date = time.strftime("%Y-%m-%d")
+    date_type = "published"
+
+    oa_type = None
+    created_here = None
+    data_type = None
+    data_type_status = None
+    subject = None
+    institution = None
+    note = ''
+    no_funding = 'TRUE'
+    acknowledged_funders = 'no_funders'
+    is_published = None
+    refereed = None
+
+    for metadata_entry in additional_metadata:
+        if 'oa.type' in metadata_entry:
+            oa_type = metadata_entry['oa.type']['name']
+        if 'institution' in metadata_entry:
+            created_here = "yes" if metadata_entry['institution']['id'] == '01eezs655' else "no"
+        if 'data.type' in metadata_entry:
+            data_type = metadata_entry['data.type']['name']
+            data_type_status = metadata_entry['data.type']['status']
+        if 'subject' in metadata_entry:
+            subject = metadata_entry['subject']['id']
+        if 'department' in metadata_entry:
+            institution = metadata_entry['department']['id']
+        if 'licenses' in metadata_entry:
+            note = metadata_entry['licenses']['name']
+        if 'funding' in metadata_entry:
+            acknowledged_funders = str(metadata_entry['funding']['acknowledged.funders'])
+            if acknowledged_funders == 'no' or acknowledged_funders == 'False':
+                acknowledged_funders = 'no'
+            elif acknowledged_funders == 'no_funders':
+                acknowledged_funders = 'no_funders'
+            else:
+                acknowledged_funders = 'yes'
+
+            no_funding = 'FALSE' if metadata_entry['funding']['received.funding'] is True else 'TRUE'
+        if 'ispublished' in metadata_entry:
+            is_published = metadata_entry['ispublished']
+        if 'refereed' in metadata_entry:
+            refereed = metadata_entry['refereed']
+
+    # Check if all required metadata is present
+    if oa_type is None or created_here is None or data_type is None or subject is None or institution is None:
+        print("Please provide all necessary fields: oa.type, institution, data.type, subject, department")
+        exit()
+
+    if data_type == "dataset" and data_type_status == "ongoing":
+        data_type = "dataset_in_progress"
+
+    # Create strings for subjects and institutions in the XML
+    subjects_string = '<subjects>'
+    subjects_string += '<item>%s</item>' % subject
+    subjects_string += '</subjects>'
+
+    institutions_string = '<institutions>'
+    institutions_string += '<item>%s</item>' % institution
+    institutions_string += '</institutions>'
+
+    nofunding_string = '<nofunding>%s</nofunding>' % no_funding
+    acknowledged_funders_string = '<acknowledged_funders>%s</acknowledged_funders>' % acknowledged_funders
+
+    is_published_string = ""
+    if is_published:
+        is_published_string = '<ispublished>%s</ispublished>' % is_published
+
+    refereed_string = ""
+    if refereed:
+        refereed_string = '<refereed>%s</refereed>' % refereed
+
+    # Build the XML metadata for the EPrint
+    ep_xml = """<?xml version='1.0' encoding='utf-8'?>
+        <eprints xmlns='http://eprints.org/ep2/data/2.0'>
+            <eprint>
+                <eprint_status>archive</eprint_status>
+                <title>%s</title>
+                <abstract>%s</abstract>
+                <note>%s</note>
+                <creators>
+                    <item>
+                    <name>
+                        <given>%s</given>
+                        <family>%s</family>
+                    </name>
+                    <orcid>%s</orcid>
+                    <id>%s</id>
+                    </item>
+                </creators>
+                <type>%s</type>
+                <oa_type>%s</oa_type>
+                <created_here>%s</created_here>
+                %s
+                %s
+                <date>%s</date>
+                <date_type>%s</date_type>
+                %s
+                %s
+                %s
+                %s
+            </eprint>
+        </eprints>
+        """ % (
+        title, description, note, first_name, last_name, orcid, nds, data_type, oa_type, created_here, subjects_string,
+        institutions_string,
+        publication_date, date_type, is_published_string, nofunding_string, acknowledged_funders_string,
+        refereed_string)
+
+    print("XML request")
+    print("--------------------------------------------------------------------")
+    print(ep_xml)
+    print("--------------------------------------------------------------------")
+
+    return ep_xml
 
 
 def load_netrc():
@@ -364,6 +653,8 @@ if __name__ == "__main__":
     # Load netrc for authentication
     net = load_netrc()
 
+    password = None
+
     if user is None and net:
         try:
             (user, account, password) = net.authenticators(BASE_URL[8:])
@@ -374,6 +665,7 @@ if __name__ == "__main__":
     else:
         user = False
 
+    # No eprint id provided via args
     if epid is None:
         epid = False
 
@@ -382,8 +674,7 @@ if __name__ == "__main__":
     # curl and python.requests should attempt to use netrc instead
     # they will try to use .netrc (linux) or _netrc from the users home directory
     # The file should look like this machine <example.com> login <username> password <password>
-
-    if user and password == None:
+    if user and password is None:
         password = getpass.getpass('Password:')
 
     yamlfile = ""
@@ -401,28 +692,13 @@ if __name__ == "__main__":
     yaml_mtime = os.path.getmtime(yamlfile)
     yaml_timestamp = datetime.fromtimestamp(yaml_mtime, tz=timezone.utc)  # Convert to UTC datetime
 
-    print(f"YAML file was last changed at {yaml_timestamp}")
+    print(f"Local YAML file was last changed at {yaml_timestamp}")
 
     # Open yaml file
     stream = open(yamlfile, "r")
     doc = yaml.safe_load(stream)
 
-    # Extract metadata from the YAML file
-    # Get title and author
-    experiment = doc['experiment']
-    title = experiment['title']
-    experiment_name = experiment['name']
-    description = experiment['description']
-    # can there be multiple authors?
-    # author_list = doc['author']
-    # print(author_list)
-    # print("title: " + str(title) + " author: " + str(doc['author']))
-    # author={}
-    # if not this should be fine:
-    author = doc['author']
-
-    additional_metadata = doc['meta-data']
-
+    # TODO: What does this do?
     # Read and write finished flag
     if 'finished' in doc.keys():
         print("Messung abgeschlossen!")
@@ -431,123 +707,22 @@ if __name__ == "__main__":
 
     docids = None
     if 'epid' in doc.keys():
+        epid = doc['epid']
+
         if not args.auto:
             response = input("Please check if the eprint id is associated with the correct entry. Do you want to "
                              "proceed? (y/n): ").strip().lower()
             if response != "y":
                 print("Exiting.")
                 sys.exit(1)
-            else:
-                epid = doc['epid']
-                # Compare for file updates before the original yaml file on the server is updated
-                docids = get_document_ids(int(epid), yaml_timestamp, type='fileid', force=force)
+
+    experiment_name = doc['experiment']['name']
+    ep_xml = create_ep_xml_schema(doc)
+
+    # YAML file was read
     stream.close()
 
-    # Prepare the XML content for EPrint metadata
-    # Send metadata as xml request
-    first_name = author['firstName']
-    last_name = author['lastName']
-    orcid = author['id']
-    nds = user
-    publication_date = time.strftime("%Y-%m-%d")
-    date_type = "published"
-
-    oa_type = None
-    created_here = None
-    data_type = None
-    data_type_status = None
-    subject = None
-    institution = None
-    note = ''
-    no_funding = 'TRUE'
-    acknowledged_funders = 'no_funders'
-
-    for metadata_entry in additional_metadata:
-        if 'oa.type' in metadata_entry:
-            oa_type = metadata_entry['oa.type']['name']
-        if 'institution' in metadata_entry:
-            created_here = "yes" if metadata_entry['institution']['id'] == '01eezs655' else "no"
-        if 'data.type' in metadata_entry:
-            data_type = metadata_entry['data.type']['name']
-            data_type_status = metadata_entry['data.type']['status']
-        if 'subject' in metadata_entry:
-            subject = metadata_entry['subject']['id']
-        if 'department' in metadata_entry:
-            institution = metadata_entry['department']['id']
-        if 'licenses' in metadata_entry:
-            note = metadata_entry['licenses']['name']
-        if 'funding' in metadata_entry:
-            acknowledged_funders = str(metadata_entry['funding']['acknowledged.funders'])
-            if acknowledged_funders == 'no' or acknowledged_funders == 'False':
-                acknowledged_funders = 'no'
-            elif acknowledged_funders == 'no_funders':
-                acknowledged_funders = 'no_funders'
-            else:
-                acknowledged_funders = 'yes'
-
-            no_funding = 'FALSE' if metadata_entry['funding']['received.funding'] is True else 'TRUE'
-
-    # Check if all required metadata is present
-    if oa_type is None or created_here is None or data_type is None or subject is None or institution is None:
-        print("Please provide all necessary fields: oa.type, institution, data.type, subject, department")
-        exit()
-
-    if data_type == "dataset" and data_type_status == "ongoing":
-        data_type = "dataset_in_progress"
-
-    # Create strings for subjects and institutions in the XML
-    subjects_string = '<subjects>'
-    subjects_string += '<item>%s</item>' % subject
-    subjects_string += '</subjects>'
-
-    institutions_string = '<institutions>'
-    institutions_string += '<item>%s</item>' % institution
-    institutions_string += '</institutions>'
-
-    nofunding_string = '<nofunding>%s</nofunding>' % no_funding
-    acknowledged_funders_string = '<acknowledged_funders>%s</acknowledged_funders>' % acknowledged_funders
-
-    # Build the XML metadata for the EPrint
-    ep_xml = """<?xml version='1.0' encoding='utf-8'?>
-    <eprints xmlns='http://eprints.org/ep2/data/2.0'>
-        <eprint>
-            <eprint_status>archive</eprint_status>
-            <title>%s</title>
-            <abstract>%s</abstract>
-            <note>%s</note>
-            <creators>
-                <item>
-                <name>
-                    <given>%s</given>
-                    <family>%s</family>
-                </name>
-                <orcid>%s</orcid>
-                <id>%s</id>
-                </item>
-            </creators>
-            <type>%s</type>
-            <oa_type>%s</oa_type>
-            <created_here>%s</created_here>
-            %s
-            %s
-            <date>%s</date>
-            <date_type>%s</date_type>
-            <ispublished>pub</ispublished>
-            %s
-            %s
-        </eprint>
-    </eprints>
-    """ % (
-        title, description, note, first_name, last_name, orcid, nds, data_type, oa_type, created_here, subjects_string,
-        institutions_string,
-        publication_date, date_type, nofunding_string, acknowledged_funders_string)
-
-    print("XML request")
-    print("--------------------------------------------------------------------")
-    print(ep_xml)
-    print("--------------------------------------------------------------------")
-
-    ep_xml_file = create_ep_xml(ep_xml)
+    ep_xml_file = create_ep_xml_file(ep_xml)
 
     if not epid:
         headers = {}
@@ -569,7 +744,14 @@ if __name__ == "__main__":
         docids = get_document_ids(int(epid), yaml_timestamp)
     else:
         # Eprint entry already exists
-        print("Eprint with id " + str(epid) + " was updated")
+        # Compare for file updates before the original yaml file on the server is updated
+        # The id of the main html file is returned (as a list)
+        docids = get_document_ids(int(epid), yaml_timestamp, type='fileid', force=force)
+
+        print("Eprint with id " + str(epid) + " will be updated")
+
+    print("docids:")
+    print(docids)
 
     # Update yamlfile stream
     stream = open(yamlfile, "r")
@@ -585,36 +767,36 @@ if __name__ == "__main__":
 
     url = ''
 
-    if docids:
-        if docids == -1:
-            print("Files already up to date")
-            cleanup()
-            exit()
-        else:
-            # Check if files present and delete/update them
-            for document in docids:
-                print(document)
+    if docids and docids == -1:
+        print("Files already up to date")
+        cleanup()
+        exit()
 
     thisurl = BASE_URL + "/id/eprint/" + str(epid) + "/contents"
 
     # Upload all htmlfiles
     htmlpath = path  # + "/evaluations/" oder '/opt/DTSevaluations/example data/colorlearning/evaluations/'
-    print(htmlpath)
 
     # indexfile currently has the same name as the measurement
     # Upload the index file (usually the main file) first and add the others to its epid
     indexfile = os.path.join(htmlpath, experiment_name + ".html")
+    print(f"Index file is {indexfile}")
 
+    # TODO: Files don't get overwritten, they just get added again.
     if os.path.isfile(indexfile):
-        print("Uploading: " + indexfile)
         if docids and len(docids) >= 1:
+            # Main HTML file will be updated
             print("Add files to an existing entry")
-            curl_send_file(indexfile, BASE_URL + "/id/file/" + str(docids[0]), action='PUT')
+            curl_target = BASE_URL + "/id/file/" + str(docids[0])
+            print(f"Target url: {curl_target}")
+
+            curl_send_file(indexfile, curl_target, action='PUT')
         else:
             curl_target = BASE_URL + "/id/eprint/" + str(epid) + "/contents"
             print(f"Adding files to a new entry {epid}")
             print(f"File tu upload: {indexfile}")
             print(f"Target url: {curl_target}")
+
             curl_send_file(indexfile, curl_target, action='POST')
 
         # Fetch the main document ID after the first upload
@@ -626,28 +808,44 @@ if __name__ == "__main__":
         docid = False
         if response and len(response) > 0:
             docid = response[0]
+            print(f"Docid {docid} was request")
         else:
             print("No docid could be requested")
 
         if docid:
             for root, dirs, files in os.walk(path):
-                for htmlfile in files:
+                for experiment_file in files:
                     headers = {}
-                    filename, extension = os.path.splitext(htmlfile)
+                    filename, extension = os.path.splitext(experiment_file)
 
                     if extension in [".html", ".xml", ".yml"]:
-                        if verbose:
-                            print("Uploading: " + filename + extension)
+                        experiment_file = os.path.join(root, experiment_file)
+                        # Check if the file already exists on the server
+                        existing_file_id = get_existing_file_id(epid, os.path.basename(experiment_file))
 
-                        htmlfile = os.path.join(root, htmlfile)
-                        up_file = htmlfile
+                        """
+                        if existing_file_id:
+                            print(f"File with id {existing_file_id} already exists!")
+                            # If file exists, delete it first before re-uploading
+                            delete_existing_file(existing_file_id)
+                        """
 
-                        if up_file != indexfile:
-                            curl_send_file(up_file, url=BASE_URL + "/id/document/" + docid + "/contents", action='POST')
+                        if experiment_file != indexfile:
+                            if verbose:
+                                print("Attempt to upload " + filename + extension)
+
+                            action = "POST"
+                            if existing_file_id:
+                                action = "PUT"
+                            curl_target = BASE_URL + "/id/document/" + docid + "/contents"
+
+                            print(f"Send to {curl_target} via {action}")
+
+                            curl_send_file(experiment_file, url=curl_target, action=action)
         # TODO: Upload YAML file
 
     else:
         print("HTML file doesn't exist")
 
-    # Delete files after upload
+    # Delete the ep_xml file
     cleanup()

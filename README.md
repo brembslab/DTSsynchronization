@@ -29,7 +29,7 @@ Skript manuell ausführen (als Administrator unter Windows):
 
 Optionale Parameter:
 - `--force`: Überschreibt bestehende Dateien
-- `--auto`: Unterbindet die manuelle Bestätigung und Prüfung der korrekten EPRINT-Id
+- `--auto`: Unterbindet die manuelle Bestätigung und Prüfung der korrekten EPRINT-ID
 
 # Skript automatisieren
 ## Windows
