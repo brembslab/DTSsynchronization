@@ -7,7 +7,7 @@ import mimetypes
 import zipfile
 import re
 import time
-from datetime import datetime, date, timezone
+from datetime import datetime, date, timezone, timedelta
 from zipfile import ZIP_DEFLATED
 import netrc
 from dotenv import load_dotenv
@@ -98,14 +98,14 @@ def curl_send_file(file, url, action='POST'):
             '-H "Content-Type: text/html" -H "Content-Disposition: attachment; filename={filename}" {url}'
         ).format(action=action, file=file, filename=filename, url=url)
 
-    logging.debug("Running command:", cmd)
+    logging.debug(f"Running command: {cmd}")
 
     # Using shell=True, pass the command as a string.
     result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
-    logging.debug("Return code:", result.returncode)
-    logging.debug("Standard Output:\n", result.stdout)
-    logging.debug("Standard Error:\n", result.stderr)
+    logging.debug("Return code:%s", result.returncode)
+    logging.debug("Standard Output:\n%s", result.stdout)
+    logging.debug("Standard Error:\n%s", result.stderr)
 
     return result
 
@@ -182,33 +182,46 @@ def get_document_ids(epid, experiment_name, yaml_timestamp=None, type='fileid'):
         -1 if zips are up to date
         int[] with xml.zip and pdf.zip at [0] and [1] respectively
     """
-    ns = {'atom': 'http://www.w3.org/2005/Atom'}
+
+    ns_atom = {'atom': 'http://www.w3.org/2005/Atom'}
+    ns_eprint = {'ep2': 'http://eprints.org/ep2/data/2.0'}
 
     s = requests.Session()
 
-    headers = {'Accept': 'application/atom+xml', 'Accept-Charset': 'UTF-8'}
-
-    url = BASE_URL + "/id/eprint/" + str(epid) + "/contents"
+    headers_atom_xml = {'Accept': 'application/atom+xml', 'Accept-Charset': 'UTF-8'}
+    url_atom_xml = BASE_URL + "/id/eprint/" + str(epid) + "/contents"
+    headers_eprint_xml = {'Accept': 'application/xml', 'Accept-Charset': 'UTF-8'}
+    url_eprint_xml = f"{BASE_URL}/cgi/export/eprint/{epid}/XMLCit/epub-eprint-{epid}.xml"
 
     if user:
-        r = requests.Request('GET', url, headers=headers, auth=(user, password))
+        r_atom_xml = requests.Request('GET', url_atom_xml, headers=headers_atom_xml, auth=(user, password))
     else:
-        r = requests.Request('GET', url, headers=headers)
+        r_atom_xml = requests.Request('GET', url_atom_xml, headers=headers_atom_xml)
 
-    if verbose:
-        logging.debug("get_document_ids")
-        logging.debug("--------------------------------------------------------------------")
-        # logging.debug(headers)
-    prepared = r.prepare()
+    prepared_atom_xml = r_atom_xml.prepare()
 
-    # Verify ssl certificate
-    main_respponse = s.send(prepared, verify=VERIFY)
-    if verbose:
-        # logging.debug(resp)
-        # logging.debug(resp.status_code)
-        # logging.debug(resp.raise_for_status())
-        # logging.debug(main_respponse.headers)
-        logging.debug(main_respponse.text)
+    response_atom_xml = s.send(prepared_atom_xml, verify=VERIFY)
+
+    logging.debug(response_atom_xml)
+    logging.debug(response_atom_xml.status_code)
+    logging.debug(response_atom_xml.raise_for_status())
+    logging.debug(response_atom_xml.headers)
+    logging.debug(response_atom_xml.text)
+
+    if user:
+        r_eprint_xml = requests.Request('GET', url_eprint_xml, headers=headers_eprint_xml, auth=(user, password))
+    else:
+        r_eprint_xml = requests.Request('GET', url_eprint_xml, headers=headers_eprint_xml)
+
+    prepared_eprint_xml = r_eprint_xml.prepare()
+
+    response_eprint_xml = s.send(prepared_eprint_xml, verify=VERIFY)
+
+    logging.debug(response_eprint_xml)
+    logging.debug(response_eprint_xml.status_code)
+    logging.debug(response_eprint_xml.raise_for_status())
+    logging.debug(response_eprint_xml.headers)
+    logging.debug(response_eprint_xml.text)
 
     # The main HTML file is returned that looks like this:
     """
@@ -236,36 +249,35 @@ def get_document_ids(epid, experiment_name, yaml_timestamp=None, type='fileid'):
     </feed>
     """
 
-    if main_respponse.status_code == 200 or main_respponse.status_code == 201:
-        root_xml = ET.fromstring(main_respponse.text)
-        updated_elem = root_xml.find('atom:updated', ns)
-        if updated_elem is None or updated_elem.text is None:
-            logging.debug("No timestamp found in the EPrints doc")
-            return None
+    if (response_eprint_xml.status_code == 200 or response_eprint_xml.status_code == 201) and (
+            response_atom_xml.status_code == 200 or response_atom_xml.status_code == 201):
+        # Parse the eprint XML
+        root_eprint_xml = ET.fromstring(response_eprint_xml.text)
 
-        ep_timestamp = updated_elem.text.strip()
-        # Convert the timestamp to a datetime object
-        ep_iso_timestamp = datetime.fromisoformat(ep_timestamp.replace("Z", "+00:00"))
+        # Find the <lastmod> element using the namespace
+        adjusted_adjusted_ep_timestamp_utc = None
+        lastmod_elem = root_eprint_xml.find('ep2:lastmod', ns_eprint)
+        if lastmod_elem is not None and lastmod_elem.text:
+            lastmod_str = lastmod_elem.text.strip()  # "2025-03-19 09:34:42"
 
-        if verbose:
-            if yaml_timestamp:
-                logging.debug("Yamlfile last changed: " + yaml_timestamp.isoformat())
-            logging.debug("Eprints file last modified: " + ep_iso_timestamp.isoformat())
+            # Convert the timestamp string into a datetime object.
+            ep_timestamp = datetime.strptime(lastmod_str, "%Y-%m-%d %H:%M:%S")
+            adjusted_ep_timestamp = ep_timestamp
+            # TODO: adjusted_ep_timestamp = ep_timestamp + timedelta(hours=1)
+            adjusted_adjusted_ep_timestamp_utc = adjusted_ep_timestamp.replace(tzinfo=timezone.utc)
 
         # Compare timestamps of file with Eprints
         # If equal or yaml is older (lesser than), then no update is needed
-        # TODO: This comparison doesn't work as eprints returns the current time in the updated element
-
-        if yaml_timestamp:
-            ep_hour = ep_iso_timestamp.replace(minute=0, second=0, microsecond=0)
-            yaml_hour = yaml_timestamp.replace(minute=0, second=0, microsecond=0)
-
-            if ep_hour >= yaml_hour:
-                pass
-                # return -1
+        if yaml_timestamp and adjusted_adjusted_ep_timestamp_utc:
+            logging.debug("Yamlfile last changed: " + yaml_timestamp.isoformat())
+            logging.debug("Eprints file last modified: " + adjusted_adjusted_ep_timestamp_utc.isoformat())
+            if adjusted_adjusted_ep_timestamp_utc >= yaml_timestamp:
+                return -1
+        else:
+            logging.debug(f"No timestamp was passed as it was probably newly created.")
 
         regex = "text\/html.*\/document\/\d+"
-        response_text = main_respponse.text
+        response_text = response_atom_xml.text
 
         doc_ids = []
         # Iterate every "contents" of each uploaded file "package"
@@ -276,14 +288,14 @@ def get_document_ids(epid, experiment_name, yaml_timestamp=None, type='fileid'):
             # Get the id of the document
             if type == 'fileid':
                 # Read file ids; Eprints stores the files with ids, independent of the eprint id
-                url = BASE_URL + "/id/document/" + str(m.group(0)) + "/contents"
+                url_contents = BASE_URL + "/id/document/" + str(m.group(0)) + "/contents"
 
                 if user:
-                    r = requests.Request('GET', url, headers=headers, auth=(user, password))
+                    r_contents = requests.Request('GET', url_contents, headers=headers_atom_xml, auth=(user, password))
                 else:
-                    r = requests.Request('GET', url, headers=headers)
+                    r_contents = requests.Request('GET', url_contents, headers=headers_atom_xml)
 
-                prepared = r.prepare()
+                prepared_contents = r_contents.prepare()
 
                 # This is the list of all appended files
                 """
@@ -306,28 +318,28 @@ def get_document_ids(epid, experiment_name, yaml_timestamp=None, type='fileid'):
                 ...
                 """
 
-                single_response = s.send(prepared, verify=VERIFY)
+                single_response = s.send(prepared_contents, verify=VERIFY)
                 if single_response.status_code == 200 or single_response.status_code == 201:
                     if verbose:
                         logging.debug("/documents overview")
                         logging.debug("-------------")
                         logging.debug(single_response.status_code)
-                        # print(single_response.raise_for_status())
-                        # print(single_response.headers)
-                        # print(single_response.text)
+                        # logging.debug(single_response.raise_for_status())
+                        # logging.debug(single_response.headers)
+                        # logging.debug(single_response.text)
 
                     # Parse the XML content
                     root_xml = ET.fromstring(single_response.text)
                     # Iterate over all <entry> elements in the feed
-                    for entry in root_xml.findall('atom:entry', ns):
-                        title_elem = entry.find('atom:title', ns)
+                    for entry in root_xml.findall('atom:entry', ns_atom):
+                        title_elem = entry.find('atom:title', ns_atom)
                         if title_elem is not None and title_elem.text is not None:
                             # Get the title and remove its file extension, if any
                             entry_title = title_elem.text.strip()
                             entry_title_base = os.path.splitext(entry_title)[0]
                             # Compare the title text (after stripping whitespace) to the experiment name
                             if entry_title_base == experiment_name.strip():
-                                id_elem = entry.find('atom:id', ns)
+                                id_elem = entry.find('atom:id', ns_atom)
                                 if id_elem is not None and id_elem.text is not None:
                                     # Extract the file id from the URL (the last segment after '/')
                                     file_id = id_elem.text.strip().split('/')[-1]
@@ -336,9 +348,6 @@ def get_document_ids(epid, experiment_name, yaml_timestamp=None, type='fileid'):
                                     doc_ids.append(file_id)
 
                     logging.debug("-------------")
-
-                    # TODO: Check XML and updated tag:
-                    # exit()
             else:
                 doc_ids.append(m.group(0))
                 continue
@@ -406,7 +415,7 @@ def get_existing_file_id(epid, filename):
 
             if matched_doc_id:
                 document_id = matched_doc_id.group()
-                logging.debug("Document ID:", document_id)
+                logging.debug(f"Document ID: {document_id}")
             else:
                 logging.debug("Document ID not found.")
         else:
@@ -447,7 +456,7 @@ def get_existing_file_id(epid, filename):
 
         if match:
             file_id = match.group(1)
-            logging.debug(f"✅ File '{filename}' exists on the server with file ID {file_id}.")
+            logging.debug(f"File '{filename}' exists on the server with file ID {file_id}.")
             return file_id  # Return the corresponding file ID
 
     logging.debug(f"No existing file '{filename}' found on the server.")
@@ -672,6 +681,11 @@ if __name__ == "__main__":
         datefmt='%Y-%m-%d %H:%M:%S'
     )
 
+    if verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+    else:
+        logging.getLogger().setLevel(logging.INFO)
+
     # If no path set, read from cmd
     if path is None:
         path = input("File/Directory: ")
@@ -725,7 +739,10 @@ if __name__ == "__main__":
         logging.debug(f"YAML file located at {yamlfile}")
 
     yaml_mtime = os.path.getmtime(yamlfile)
-    yaml_timestamp = datetime.fromtimestamp(yaml_mtime, tz=timezone.utc)  # Convert to UTC datetime
+    # First, get the file modification time as a naive datetime in local time:
+    local_dt = datetime.fromtimestamp(yaml_mtime)
+    # Then, convert it to a timezone-aware datetime in UTC:
+    yaml_timestamp = local_dt.astimezone(timezone.utc)
 
     logging.debug(f"Local YAML file was last changed at {yaml_timestamp}")
 
@@ -767,24 +784,22 @@ if __name__ == "__main__":
         epid = send_sword_request(data, content_type='application/vnd.eprints.data+xml', send_file=False,
                                   headers=headers)
 
-        if verbose:
-            logging.debug("EPID: " + str(epid))
-
         m = re.search('[0-9]+$', str(epid))
         epid = m.group(0)
 
-        logging.debug("Eprint with id " + epid + " was created")
+        logging.debug(f"Eprint with id {epid} was created")
 
-        # Fetch document IDs
-        docids = get_document_ids(int(epid), experiment_name, yaml_timestamp)
+        # Fetch document IDs of newly created entry
+        # Pass no timestamp as it was newly created
+        docids = get_document_ids(int(epid), experiment_name, yaml_timestamp=None)
     else:
         # Eprint entry already exists, so get the file ids of the main html files
         # The ids of the main html files (if more uploaded packages are available)
         docids = get_document_ids(int(epid), experiment_name, yaml_timestamp, type='fileid')
 
-        logging.debug("Eprint with id " + str(epid) + " will be updated")
+        logging.debug(f"Eprint with id {str(epid)} will be updated")
 
-    logging.debug("docids:")
+    logging.debug("The docids are the following:")
     logging.debug(docids)
 
     # Update yamlfile stream
@@ -875,7 +890,7 @@ if __name__ == "__main__":
 
                 # if experiment_file != indexfile:
                 if verbose:
-                    logging.debug("Attempt to upload " + filename + extension)
+                    logging.debug(f"Attempt to upload {filename}.{extension}")
 
                 curl_target = BASE_URL + "/id/document/" + docid + "/contents"
 
@@ -891,7 +906,6 @@ if __name__ == "__main__":
                 sys.stdout.flush()
             print()
             logging.info("Upload finished")
-        # TODO: Upload YAML file
 
     else:
         logging.info("HTML file doesn't exist")
